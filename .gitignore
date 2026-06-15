@@ -1,0 +1,24 @@
+# Entornos virtuales
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Directorio de datos locales (evitar subir gigas de CSVs)
+.data_cache/
+
+# Archivos de SO
+.DS_Store
+Thumbs.db
+
+# Editores y variables de entorno
+.vscode/
+.idea/
+.env
