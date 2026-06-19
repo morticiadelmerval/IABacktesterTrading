@@ -20,11 +20,12 @@ def fetch_data():
     for ticker in TICKERS:
         cache_path = os.path.join(CACHE_DIR, f"{ticker}.csv")
         
-        # Invalidate cache if it's older than 1 minute (for live price updates)
+        # Invalidate cache if it's older than specified seconds (default 60 for live price updates)
         cache_valid = False
+        cache_expire = int(os.environ.get("YF_CACHE_SECONDS", 60))
         if os.path.exists(cache_path):
             mod_time = datetime.fromtimestamp(os.path.getmtime(cache_path))
-            if (datetime.now() - mod_time).total_seconds() < 60:
+            if (datetime.now() - mod_time).total_seconds() < cache_expire:
                 cache_valid = True
 
         if cache_valid:

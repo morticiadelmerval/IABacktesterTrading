@@ -40,7 +40,12 @@ def run_walk_forward_multi():
         
     print(f"Iniciando Walk-Forward MULTI en: {device}")
     data = fetch_data()
-    predictions_cache = {tk: {} for tk in TICKERS}
+    try:
+        with open(OUTPUT_FILE, "r") as f:
+            predictions_cache = json.load(f)
+            print(f"Caché cargado con {len(predictions_cache)} tickers.")
+    except FileNotFoundError:
+        predictions_cache = {tk: {} for tk in TICKERS}
     
     context_len = 512
     forecast_len = 96
@@ -86,11 +91,20 @@ def run_walk_forward_multi():
         min_train_size = max(500, int(len(samples_past) * 0.30))
         step_size = max(50, int(len(samples_past) * 0.05))
         
-        all_oos_preds = {}
+        all_oos_preds = predictions_cache.get(tk, {})
         
         for train_end in range(min_train_size, len(samples_past), step_size):
             test_end = min(train_end + step_size, len(samples_past))
             if test_end <= train_end: break
+            
+            test_dates = []
+            for j in range(test_end - train_end):
+                date_idx = train_end + j + context_len
+                if date_idx < len(df):
+                    test_dates.append(df.index[date_idx].strftime("%Y-%m-%d"))
+                    
+            if len(test_dates) > 0 and all(d in all_oos_preds for d in test_dates):
+                continue
             
             print(f"  Entrenando [{0}:{train_end}]...", end=" ", flush=True)
             

@@ -1,4 +1,4 @@
-﻿"""
+"""
 MiniRocket GPU: Entrenamiento + Pre-cálculo de Señales (S18)
 ============================================================
 Utiliza la librería tsai (fastai/PyTorch) para ejecutar 
@@ -64,7 +64,12 @@ def run_gpu_training():
     print("=" * 60)
     
     data = fetch_data()
-    predictions_cache = {tk: {} for tk in TICKERS}
+    try:
+        with open(OUTPUT_FILE, "r") as f:
+            predictions_cache = json.load(f)
+            print(f"Caché cargado con {len(predictions_cache)} tickers.")
+    except FileNotFoundError:
+        predictions_cache = {tk: {} for tk in TICKERS}
     
     for tk in TICKERS:
         if tk not in data: continue
@@ -93,12 +98,21 @@ def run_gpu_training():
         
         print(f"    Walk-Forward (GPU)...", end=" ", flush=True)
         
-        all_oos_probs = {} # date -> probability of class 1
+        all_oos_probs = predictions_cache.get(tk, {}) # date -> probability of class 1
         
         for train_end in range(min_train_size, len(windows), step_size):
             test_end = min(train_end + step_size, len(windows))
             if test_end <= train_end: break
             
+            test_dates = []
+            for j in range(test_end - train_end):
+                date_idx = CONTEXT_LEN + train_end + j
+                if date_idx < len(df):
+                    test_dates.append(df.index[date_idx].strftime("%Y-%m-%d"))
+                    
+            if len(test_dates) > 0 and all(d in all_oos_probs for d in test_dates):
+                continue
+                
             # Crear splits predefinidos para fastai
             train_idx = list(range(train_end))
             valid_idx = list(range(train_end, test_end))

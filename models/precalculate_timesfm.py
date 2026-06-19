@@ -53,15 +53,22 @@ def run_timesfm_precalculation():
         predictions_cache = {} # Dict of ticker -> dict of date -> prediction signal
     
     for tk, df in data.items():
-        if tk in predictions_cache and len(predictions_cache[tk]) > 100:
-            print(f"Saltando {tk}, ya existen {len(predictions_cache[tk])} inferencias en caché.")
-            continue
-            
-        print(f"Procesando secuencias para {tk}...")
         closes = df['Close'].values
         dates = df.index.astype(str).tolist()
+        tk_preds = predictions_cache.get(tk, {})
         
-        tk_preds = {}
+        start_idx = context_len
+        for i in range(len(dates) - 1, context_len - 1, -1):
+            if dates[i] in tk_preds:
+                start_idx = i + 1
+                break
+                
+        if start_idx >= len(closes) - forecast_len:
+            print(f"[{tk}] Al día. (Cache: {len(tk_preds)} inferencias)")
+            predictions_cache[tk] = tk_preds
+            continue
+            
+        print(f"[{tk}] Actualizando desde índice {start_idx} hasta {len(closes) - forecast_len}...")
         
         # In a real heavy run, we would batch this.
         # For simplicity of this script, we'll iterate with a progress indicator
@@ -73,7 +80,7 @@ def run_timesfm_precalculation():
             # Returns a random prediction between -2% and 3%
             np.random.seed(42 + len(tk))
             mock_preds = np.random.uniform(-0.02, 0.03, len(closes))
-            for i in range(context_len, len(closes) - forecast_len):
+            for i in range(start_idx, len(closes) - forecast_len):
                 tk_preds[dates[i]] = float(mock_preds[i])
         else:
             # REAL INFERENCE LOGIC FOR THE GPU
@@ -83,7 +90,7 @@ def run_timesfm_precalculation():
             batch_stds = []
             batch_current_prices = []
             
-            for i in range(context_len, len(closes) - forecast_len):
+            for i in range(start_idx, len(closes) - forecast_len):
                 seq = closes[i-context_len:i]
                 # Normalize sequence to help TimesFM
                 seq_mean = np.mean(seq)

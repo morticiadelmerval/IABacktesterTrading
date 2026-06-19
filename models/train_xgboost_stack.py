@@ -67,7 +67,12 @@ def run_xgboost_stacking():
     with open("data/minirocket_gpu_signals.json", "r") as f:
         mr_cache = json.load(f)
         
-    predictions_cache = {tk: {} for tk in TICKERS}
+    try:
+        with open("data/xgboost_stack_signals.json", "r") as f:
+            predictions_cache = json.load(f)
+            print(f"Caché cargado con {len(predictions_cache)} tickers.")
+    except FileNotFoundError:
+        predictions_cache = {tk: {} for tk in TICKERS}
     
     CONTEXT_LEN = 256
     FORECAST_HORIZON = 5
@@ -88,15 +93,18 @@ def run_xgboost_stacking():
         min_train_size = max(500, int(len(X) * 0.30))
         step_size = max(50, int(len(X) * 0.05))
         
-        all_oos_probs = {}
+        all_oos_probs = predictions_cache.get(tk, {})
         
         for train_end in range(min_train_size, len(X), step_size):
             test_end = min(train_end + step_size, len(X))
             if test_end <= train_end: break
             
+            test_dates = dates[train_end:test_end]
+            if len(test_dates) > 0 and all(d in all_oos_probs for d in test_dates):
+                continue
+            
             X_train, y_train = X[:train_end], y[:train_end]
             X_test, y_test = X[train_end:test_end], y[train_end:test_end]
-            test_dates = dates[train_end:test_end]
             
             # Usar XGBoost (Device CUDA)
             clf = xgb.XGBClassifier(
@@ -120,7 +128,8 @@ def run_xgboost_stacking():
                 all_oos_probs[test_dates[j]] = float(probs_1[j])
                 
         # Calcular Accuracy del stack:
-        oos_correct = sum(1 for d, p in all_oos_probs.items() if (1 if p > 0.5 else 0) == y[dates.index(d)])
+        date_to_y = {dates[i]: y[i] for i in range(len(dates))}
+        oos_correct = sum(1 for d, p in all_oos_probs.items() if d in date_to_y and (1 if p > 0.5 else 0) == date_to_y[d])
         oos_total = len(all_oos_probs)
         acc = (oos_correct / oos_total * 100) if oos_total > 0 else 0.0
         print(f"OOS Stack Accuracy: {acc:.1f}% ({oos_total} signals)")
@@ -130,7 +139,7 @@ def run_xgboost_stacking():
     os.makedirs("data", exist_ok=True)
     with open("data/xgboost_stack_signals.json", "w") as f:
         json.dump(predictions_cache, f, indent=4)
-    print("\n✓ Stacking de XGBoost completado.")
+    print("\nStacking de XGBoost completado.")
 
 if __name__ == "__main__":
     run_xgboost_stacking()

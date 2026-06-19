@@ -1,4 +1,4 @@
-﻿"""
+"""
 MiniRocket: Entrenamiento + Pre-cálculo de Señales para S17
 ============================================================
 Usa convoluciones aleatorias fijas (MiniRocket) + RidgeClassifierCV
@@ -43,17 +43,24 @@ def run_minirocket_training():
     print("=" * 60)
     
     # Importar MiniRocket
-    print("\nImportando MiniRocket desde sktime...")
-    from sktime.transformations.panel.rocket import MiniRocket
+    print("\nImportando MiniRocketFeatures desde tsai (GPU)...")
+    import torch
+    from tsai.models.MINIROCKET_Pytorch import MiniRocketFeatures
     from sklearn.linear_model import RidgeClassifierCV
     from sklearn.preprocessing import StandardScaler
-    print("✓ MiniRocket cargado correctamente.")
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"MiniRocketFeatures cargado correctamente. Usando: {device}")
     
     # Cargar datos
     print("\nCargando datos históricos de 18 activos...")
     data = fetch_data()
-    
-    predictions_cache = {tk: {} for tk in TICKERS}
+    try:
+        with open(OUTPUT_FILE, "r") as f:
+            predictions_cache = json.load(f)
+            print(f"Caché cargado con {len(predictions_cache)} tickers.")
+    except FileNotFoundError:
+        predictions_cache = {tk: {} for tk in TICKERS}
     
     for tk in TICKERS:
         if tk not in data:
@@ -94,11 +101,20 @@ def run_minirocket_training():
         
         print(f"    Walk-Forward (min_train={min_train_size}, step={step_size})...", end=" ", flush=True)
         
-        all_oos_preds = {}  # date -> prediction (solo out-of-sample)
+        all_oos_preds = predictions_cache.get(tk, {})
         
         for train_end in range(min_train_size, len(windows), step_size):
             test_end = min(train_end + step_size, len(windows))
             
+            test_dates = []
+            for j in range(test_end - train_end):
+                date_idx = CONTEXT_LEN + train_end + j
+                if date_idx < len(df):
+                    test_dates.append(df.index[date_idx].strftime("%Y-%m-%d"))
+                    
+            if len(test_dates) > 0 and all(d in all_oos_preds for d in test_dates):
+                continue
+                
             X_train = X_3d[:train_end]
             y_train = labels[:train_end]
             X_test = X_3d[train_end:test_end]
@@ -106,17 +122,22 @@ def run_minirocket_training():
             if len(X_test) == 0:
                 break
             
-            minirocket = MiniRocket(random_state=42)
-            minirocket.fit(X_train)
+            minirocket = MiniRocketFeatures(c_in=1, seq_len=CONTEXT_LEN).to(device)
+            X_train_tensor = torch.tensor(X_train, dtype=torch.float32).to(device)
+            X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
             
-            X_train_tf = minirocket.transform(X_train)
-            X_test_tf = minirocket.transform(X_test)
+            minirocket.fit(X_train_tensor)
+            
+            with torch.no_grad():
+                X_train_tf = minirocket(X_train_tensor).cpu().numpy()
+                X_test_tf = minirocket(X_test_tensor).cpu().numpy()
             
             scaler = StandardScaler(with_mean=False)
             X_train_scaled = scaler.fit_transform(X_train_tf)
             X_test_scaled = scaler.transform(X_test_tf)
             
-            clf = RidgeClassifierCV(alphas=np.logspace(-3, 3, 10))
+            from sklearn.linear_model import RidgeClassifier
+            clf = RidgeClassifier()
             clf.fit(X_train_scaled, y_train)
             
             test_preds = clf.predict(X_test_scaled)

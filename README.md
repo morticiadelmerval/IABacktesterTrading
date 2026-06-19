@@ -28,18 +28,18 @@ Para usar las estrategias de Inteligencia Artificial (AIS01 a AIS09) se requiere
 ## 💻 ¿Cómo ejecutar el Dashboard?
 
 1. Abre tu terminal en el directorio del proyecto.
-2. (Opcional) Pre-calcula las señales de los oráculos locales:
+2. **Actualizar la Inteligencia Artificial (Diario/Semanal):**
+   Para pre-calcular las predicciones de los modelos locales (Google TimesFM, IBM TSPulse, MiniRocket, XGBoost Stack), ejecuta el archivo de actualización. Este proceso utiliza una **Caché Incremental Inteligente**, por lo que solo calculará los días nuevos que falten, demorando solo segundos si se corre a diario:
 ```bash
-python models/precalculate_timesfm.py
-python models/precalculate_tspulse_multi.py
+actualizar_ia.bat
 ```
-3. Ejecuta el motor completo para generar el pipeline:
+3. Ejecuta el motor completo para cargar los datos y evaluar el rendimiento:
 ```bash
-python backtester.py
+uv run python backtester.py
 ```
-4. Ejecuta el servidor API local y Dashboard:
+4. Ejecuta el servidor API local y levanta el Dashboard:
 ```bash
-python web/server.py
+uv run python web/server.py
 ```
 5. Abre tu navegador web y ve a la dirección: **http://localhost:8000**
 
