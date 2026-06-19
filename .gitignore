@@ -22,3 +22,6 @@ Thumbs.db
 .vscode/
 .idea/
 .env
+
+# Agents
+.agents/
