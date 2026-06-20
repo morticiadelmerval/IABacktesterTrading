@@ -16,14 +16,16 @@ Combina un motor de cálculo de alta velocidad escrito en **Python** con un **Da
 
 ## 🚀 Requisitos de Instalación
 
-Para la instalación del backtester principal y soporte a IA:
+**Para usuarios de Windows con tarjeta gráfica NVIDIA (Recomendado):**
+Hemos preparado un instalador automático que creará tu entorno virtual, instalará todas las dependencias necesarias y descargará automáticamente los modelos pre-entrenados de IA (TimesFM y TSPulse) que pesan varios Gigabytes. 
+Solo debes dar doble clic en el archivo o ejecutar en la consola:
 ```bash
-uv sync  # (Recomendado) Usa uv para manejar las dependencias
-# O con pip:
-# pip install -r requirements.txt
+install_windows_nvidia.bat
 ```
 
-Para usar las estrategias de Inteligencia Artificial (AIS01 a AIS09) se requiere aceleración por hardware (NVIDIA GPU).
+*(Si eres un usuario avanzado o usas Linux/Mac, puedes revisar el código del instalador para replicar las dependencias o correr simplemente `uv sync`).*
+
+Para aprovechar todas las estrategias de Inteligencia Artificial (AIS01 a AIS09) se requiere aceleración por hardware (NVIDIA GPU).
 
 ## 💻 ¿Cómo ejecutar el Dashboard?
 
