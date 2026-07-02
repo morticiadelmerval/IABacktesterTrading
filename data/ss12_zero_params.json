@@ -1,0 +1,20 @@
+{
+    "indicators": [
+        "TREND_SMA",
+        "ATR_NORM",
+        "RSI_NORM",
+        "KONCORDE_MD"
+    ],
+    "weights": [
+        28,
+        34,
+        6,
+        32
+    ],
+    "entry_th": 52,
+    "exit_th": 35,
+    "beats_bh": 3,
+    "avg_return": 1393.1504406858971,
+    "total_trades": 2361,
+    "fitness": 1393.1504406858971
+}

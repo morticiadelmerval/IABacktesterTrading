@@ -2,6 +2,12 @@
 
 Todas las actualizaciones notables de este proyecto estarán documentadas en este archivo.
 
+## [0.2.2] - 2026-06-20
+### Añadido
+- **Reentrada Estricta (SMA 20):** Nuevo sistema de protección post-Stop-Loss. El motor de backtest ahora exige que el precio de cierre supere la Media Móvil de 20 días antes de autorizar una reentrada, evitando falsos rebotes y cuchillos cayendo.
+- **PineScript Dinámico:** Los scripts generados para TradingView ahora incluyen variables de estado (`in_sl_recovery`) para replicar perfectamente la lógica estricta de reentrada en tiempo real.
+- **Investigación de Entradas:** Optimización masiva usando subagentes que validó matemáticamente el modelo "Always In" para la base actual de las estrategias simples (SS01-SS11), dejando los filtros direccionales para futuras estrategias (Shorts/Bearish).
+
 ## [0.2.0] - 2026-06-19
 ### Añadido
 - **20 Estrategias Oficiales:** Reorganización del set de estrategias. Ahora se dividen en Simple Strategies (`SS01` a `SS11`) y Artificial Intelligence Strategies (`AIS01` a `AIS09`).

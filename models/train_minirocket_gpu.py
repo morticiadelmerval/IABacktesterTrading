@@ -154,17 +154,50 @@ def run_gpu_training():
                 date_to_label[df.index[di].strftime("%Y-%m-%d")] = labels[wi]
         
         oos_correct = sum(1 for d, p in all_oos_probs.items() if date_to_label.get(d) == (1 if p > 0.5 else 0))
-        oos_total = len(all_oos_probs)
+        oos_total = sum(1 for d in all_oos_probs.keys() if d in date_to_label)
         acc = (oos_correct / oos_total * 100) if oos_total > 0 else 0.0
         
-        print(f"OOS Accuracy (>0.5): {acc:.1f}% ({oos_total} signals)")
+        print(f"OOS Accuracy (>0.5): {acc:.1f}% ({oos_total} signals evaluadas)")
+        
+        # --- PREDICT LIVE EDGE ---
+        live_windows = []
+        live_dates = []
+        max_labeled_i = len(returns) - CONTEXT_LEN - FORECAST_HORIZON
+        for i in range(max_labeled_i + 1, len(returns) - CONTEXT_LEN + 1):
+            if i >= 0:
+                live_windows.append(returns[i : i + CONTEXT_LEN])
+                date_idx = i + CONTEXT_LEN - 1
+                if date_idx < len(df):
+                    live_dates.append(df.index[date_idx].strftime("%Y-%m-%d"))
+                    
+        if len(live_windows) > 0:
+            if 'learn' not in locals():
+                print(f"    [Live Edge] Entrenando modelo rapido para inferencia en vivo...", end=" ", flush=True)
+                train_idx = list(range(len(windows)-min_train_size, len(windows)))
+                valid_idx = train_idx[-2:] # Dummy validation just to construct loaders
+                splits = (train_idx, valid_idx)
+                tfms  = [None, [Categorize()]]
+                dsets = TSDatasets(X_3d, y, tfms=tfms, splits=splits)
+                dls   = TSDataLoaders.from_dsets(dsets.train, dsets.valid, bs=256, num_workers=0)
+                model = build_ts_model(MiniRocketPlus, dls=dls)
+                learn = ts_learner(dls, model, metrics=accuracy)
+                learn.logger = lambda *args, **kwargs: None
+                learn.fit_one_cycle(EPOCHS, 1e-3)
+                print("OK.")
+                
+            X_live_3d = np.array(live_windows).reshape(len(live_windows), 1, CONTEXT_LEN).astype(np.float32)
+            probs, _, _ = learn.get_X_preds(X_live_3d, with_decoded=True)
+            probs_1 = probs[:, 1].numpy()
+            
+            for j, d_str in enumerate(live_dates):
+                all_oos_probs[d_str] = float(probs_1[j])
         
         predictions_cache[tk] = all_oos_probs
         
     print(f"\nGuardando probabilidades puras en '{OUTPUT_FILE}'...")
     with open(OUTPUT_FILE, "w") as f:
         json.dump(predictions_cache, f, indent=4)
-    print(f"✓ Guardado exitoso.")
+    print("OK: Guardado exitoso.")
 
 if __name__ == "__main__":
     run_gpu_training()

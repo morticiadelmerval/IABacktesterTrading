@@ -136,6 +136,40 @@ def run_walk_forward_training():
                     
             print(f"OK. ({len(signal_vals)} preds)")
             
+        # --- PREDICT LIVE EDGE ---
+        live_past = []
+        live_dates = []
+        max_labeled_i = len(returns) - context_len - forecast_len
+        for i in range(max_labeled_i + 1, len(returns) - context_len + 1):
+            if i >= 0:
+                live_past.append(returns[i : i + context_len])
+                date_idx = i + context_len - 1
+                if date_idx < len(df):
+                    live_dates.append(df.index[date_idx].strftime("%Y-%m-%d"))
+                    
+        if len(live_past) > 0:
+            print(f"  Prediciendo Live Edge ({len(live_past)} dias)...", end=" ", flush=True)
+            if 'model' not in locals():
+                model = PatchTSMixerForPrediction.from_pretrained(MODEL_NAME)
+                model.to(device)
+            model.eval()
+            live_dataset = TSPulseDataset(live_past)
+            live_loader = DataLoader(live_dataset, batch_size=256, shuffle=False)
+            
+            preds_list = []
+            with torch.no_grad():
+                for p in live_loader:
+                    p = p.to(device)
+                    outputs = model(past_values=p)
+                    preds_list.append(outputs.prediction_outputs.cpu().numpy())
+            
+            preds_arr = np.concatenate(preds_list, axis=0)
+            signal_vals = np.sum(preds_arr[:, :5, 0], axis=1)
+            
+            for j, d_str in enumerate(live_dates):
+                all_oos_preds[d_str] = float(signal_vals[j])
+            print("OK.")
+            
         predictions_cache[tk] = all_oos_preds
         
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)

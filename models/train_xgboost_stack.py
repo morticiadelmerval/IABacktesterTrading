@@ -130,9 +130,50 @@ def run_xgboost_stacking():
         # Calcular Accuracy del stack:
         date_to_y = {dates[i]: y[i] for i in range(len(dates))}
         oos_correct = sum(1 for d, p in all_oos_probs.items() if d in date_to_y and (1 if p > 0.5 else 0) == date_to_y[d])
-        oos_total = len(all_oos_probs)
+        oos_total = sum(1 for d in all_oos_probs.keys() if d in date_to_y)
         acc = (oos_correct / oos_total * 100) if oos_total > 0 else 0.0
-        print(f"OOS Stack Accuracy: {acc:.1f}% ({oos_total} signals)")
+        print(f"OOS Stack Accuracy: {acc:.1f}% ({oos_total} signals evaluadas)")
+        
+        # --- PREDICT LIVE EDGE ---
+        live_features = []
+        live_dates = []
+        for i in range(len(df) - FORECAST_HORIZON, len(df)):
+            date_str = df.index[i].strftime("%Y-%m-%d")
+            if date_str not in mr_probs: continue
+            
+            mr_prob = mr_probs[date_str]
+            rsi = df['RSI_14'].iloc[i]
+            mfi = df['MFI_14'].iloc[i]
+            rel_vol = df['RelVol'].iloc[i]
+            c = df['Close'].iloc[i]
+            sma50 = df['SMA_50'].iloc[i]
+            sma200 = df['SMA_200'].iloc[i]
+            dist50 = (c - sma50) / sma50 if sma50 != 0 else 0
+            dist200 = (c - sma200) / sma200 if sma200 != 0 else 0
+            roc = df['ROC_5'].iloc[i]
+            
+            feat_vector = [mr_prob, rsi, mfi, rel_vol, dist50, dist200, roc]
+            live_features.append(feat_vector)
+            live_dates.append(date_str)
+            
+        if len(live_features) > 0:
+            if 'clf' not in locals():
+                print(f"    [Live Edge] Entrenando modelo rapido para inferencia en vivo...", end=" ", flush=True)
+                X_train = X[-min_train_size:]
+                y_train = y[-min_train_size:]
+                clf = xgb.XGBClassifier(
+                    n_estimators=150, max_depth=4, learning_rate=0.05,
+                    objective='binary:logistic', tree_method='hist', device='cuda',
+                    subsample=0.8, colsample_bytree=0.8, random_state=42, verbosity=0
+                )
+                clf.fit(X_train, y_train)
+                print("OK.")
+                
+            X_live = np.array(live_features)
+            probs_1 = clf.predict_proba(X_live)[:, 1]
+            
+            for j, d_str in enumerate(live_dates):
+                all_oos_probs[d_str] = float(probs_1[j])
         
         predictions_cache[tk] = all_oos_probs
         

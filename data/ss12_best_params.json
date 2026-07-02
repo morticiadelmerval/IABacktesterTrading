@@ -1,0 +1,18 @@
+{
+    "indicators": [
+        "STOCH_14",
+        "ROC_NORM",
+        "VOL_NORM",
+        "MACD_NORM"
+    ],
+    "weights": [
+        3,
+        10,
+        26,
+        61
+    ],
+    "entry_th": 65,
+    "exit_th": 13,
+    "beats_bh": 11,
+    "avg_return": 2631.9395782566758
+}

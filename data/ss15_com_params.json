@@ -1,0 +1,20 @@
+{
+    "fitness": 3578.772248906743,
+    "beats_bh": 17,
+    "indicators": [
+        "ROC_3_NORM",
+        "ATR_NORM",
+        "ROC_NORM",
+        "STOCH_14"
+    ],
+    "weights": [
+        35,
+        50,
+        10,
+        5
+    ],
+    "entry_th": 55,
+    "exit_th": 45,
+    "avg_return": 3578.772248906743,
+    "total_trades": 364
+}

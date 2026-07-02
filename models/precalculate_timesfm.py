@@ -63,12 +63,12 @@ def run_timesfm_precalculation():
                 start_idx = i + 1
                 break
                 
-        if start_idx >= len(closes) - forecast_len:
-            print(f"[{tk}] Al día. (Cache: {len(tk_preds)} inferencias)")
+        if start_idx >= len(closes):
+            print(f"[{tk}] Al dia. (Cache: {len(tk_preds)} inferencias)")
             predictions_cache[tk] = tk_preds
             continue
             
-        print(f"[{tk}] Actualizando desde índice {start_idx} hasta {len(closes) - forecast_len}...")
+        print(f"[{tk}] Actualizando desde indice {start_idx} hasta {len(closes)} (incluyendo Live Edge)...")
         
         # In a real heavy run, we would batch this.
         # For simplicity of this script, we'll iterate with a progress indicator
@@ -80,7 +80,7 @@ def run_timesfm_precalculation():
             # Returns a random prediction between -2% and 3%
             np.random.seed(42 + len(tk))
             mock_preds = np.random.uniform(-0.02, 0.03, len(closes))
-            for i in range(start_idx, len(closes) - forecast_len):
+            for i in range(start_idx, len(closes)):
                 tk_preds[dates[i]] = float(mock_preds[i])
         else:
             # REAL INFERENCE LOGIC FOR THE GPU
@@ -90,7 +90,7 @@ def run_timesfm_precalculation():
             batch_stds = []
             batch_current_prices = []
             
-            for i in range(start_idx, len(closes) - forecast_len):
+            for i in range(start_idx, len(closes)):
                 seq = closes[i-context_len:i]
                 # Normalize sequence to help TimesFM
                 seq_mean = np.mean(seq)
@@ -103,7 +103,7 @@ def run_timesfm_precalculation():
                 batch_stds.append(seq_std)
                 batch_current_prices.append(closes[i-1]) # Price right at the end of the context
                 
-                if len(inputs) == batch_size or i == len(closes) - forecast_len - 1:
+                if len(inputs) == batch_size or i == len(closes) - 1:
                     # Convert to tensor
                     input_tensor = [torch.tensor(ts, dtype=torch.float32).to(model.device) for ts in inputs]
                     

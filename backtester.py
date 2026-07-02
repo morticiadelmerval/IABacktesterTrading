@@ -1,5 +1,6 @@
 import os
 import json
+# pyrefly: ignore [missing-import]
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -15,6 +16,9 @@ END_DATE = datetime.today().strftime('%Y-%m-%d')
 # -------------------------------------------------------------------------
 # 1. Data Fetching
 # -------------------------------------------------------------------------
+def sigmoid_norm(x, scale=1.0):
+    return 100.0 / (1.0 + np.exp(-x / scale))
+
 def fetch_data():
     data = {}
     for ticker in TICKERS:
@@ -78,13 +82,66 @@ def fetch_data():
         df['Vol_SMA20'] = v.rolling(20).mean()
         df['RelVol'] = v / df['Vol_SMA20']
         
+        # SS12 Winning Indicators (100k iterations - Dual Mode)
+        df['VOL_NORM'] = sigmoid_norm(df['RelVol'] - 1.0, 1.0)
+        roc5 = df['Close'].pct_change(5) * 100
+        df['ROC_NORM'] = sigmoid_norm(roc5, 5.0)
+        delta = df['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / (loss + 1e-8)
+        df['RSI_NORM'] = 100 - (100 / (1 + rs))
+        
+        tr1 = df['High'] - df['Low']
+        tr2 = (df['High'] - df['Close'].shift()).abs()
+        tr3 = (df['Low'] - df['Close'].shift()).abs()
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        atr14 = tr.rolling(14).mean()
+        df['ATR_NORM'] = sigmoid_norm(atr14 / df['Close'] * 100, 2.0)
+        
+        ret = df['Close'].pct_change().fillna(0)
+        vol_up = df['Volume'] > df['Volume'].shift(1)
+        pvi_change = np.where(vol_up, ret, 0.0)
+        pvi = 1000.0 * np.cumprod(1 + pvi_change)
+        ema_pvi = pd.Series(pvi).ewm(span=15, adjust=False).mean()
+        scale_pvi = pd.Series(pvi).rolling(100).std().bfill() + 1e-8
+        df['KONCORDE_MD'] = sigmoid_norm(pvi - ema_pvi, scale_pvi)
+        
+        trend = (df['Close'] - df['SMA_50']) / df['SMA_50'] * 100
+        df['TREND_SMA'] = sigmoid_norm(trend, 5.0)
+        
+        # New for SS14/SS15
+        df['VOL_EXT_NORM'] = sigmoid_norm(df['RelVol'] - 2.0, 1.0)
+        ema12 = df['Close'].ewm(span=12, adjust=False).mean()
+        ema26 = df['Close'].ewm(span=26, adjust=False).mean()
+        macd = ema12 - ema26
+        macd_sig = macd.ewm(span=9, adjust=False).mean()
+        macd_hist = macd - macd_sig
+        scale_macd = macd_hist.rolling(100).std().bfill() + 1e-8
+        df['MACD_NORM'] = sigmoid_norm(macd_hist, scale_macd)
+        
+        roc3 = df['Close'].pct_change(3) * 100
+        df['ROC_3_NORM'] = sigmoid_norm(roc3, 5.0)
+        
+        bb_upper_3 = df['SMA_20'] + 3.1*df['STD_20']
+        bb_lower_3 = df['SMA_20'] - 3.1*df['STD_20']
+        df['BB_3_POS'] = (df['Close'] - bb_lower_3) / (bb_upper_3 - bb_lower_3 + 1e-8) * 100
+        df['BB_3_POS'] = df['BB_3_POS'].clip(0, 100)
+        df['MFI_NORM'] = df['MFI_14']
+        
+        low14 = df['Low'].rolling(14).min()
+        high14 = df['High'].rolling(14).max()
+        df['STOCH_14'] = 100 * (df['Close'] - low14) / (high14 - low14 + 1e-8)
+        
+        df.fillna(50.0, inplace=True)
+        
         data[ticker] = df
     return data
 
 # -------------------------------------------------------------------------
 # 2. Simulation Engine
 # -------------------------------------------------------------------------
-def run_simulation(signals_long, signals_exit, opens, closes, dates, initial_capital=10000.0, commission=0.004, stop_loss_pct=None):
+def run_simulation(signals_long, signals_exit, opens, closes, dates, initial_capital=10000.0, commission=0.004, stop_loss_pct=None, signals_strict=None):
     n = len(closes)
     equity = np.full(n, float(initial_capital))
     cash   = float(initial_capital)
@@ -93,6 +150,8 @@ def run_simulation(signals_long, signals_exit, opens, closes, dates, initial_cap
     entry_price = 0.0
     entry_idx   = 0
     trades = []
+    
+    in_sl_recovery = False
 
     for i in range(1, n):
         hit_stop_loss = False
@@ -101,7 +160,17 @@ def run_simulation(signals_long, signals_exit, opens, closes, dates, initial_cap
             if current_loss <= stop_loss_pct:
                 hit_stop_loss = True
 
-        if not in_pos and signals_long[i-1]:
+        can_enter = False
+        if not in_pos:
+            if in_sl_recovery and signals_strict is not None:
+                if signals_strict[i-1] and signals_long[i-1]:
+                    can_enter = True
+                    in_sl_recovery = False
+            else:
+                if signals_long[i-1]:
+                    can_enter = True
+
+        if can_enter:
             pos = (cash * (1.0 - commission)) / opens[i]
             cash = 0.0
             in_pos = True
@@ -124,8 +193,37 @@ def run_simulation(signals_long, signals_exit, opens, closes, dates, initial_cap
             cash   = revenue
             pos    = 0.0
             in_pos = False
+            
+            if hit_stop_loss:
+                in_sl_recovery = True
 
         equity[i] = cash + pos * closes[i]
+
+    # --- LIVE EDGE EVALUATION ---
+    if in_pos:
+        tomorrow_hit_stop_loss = False
+        if stop_loss_pct is not None:
+            current_loss = (closes[-1] / entry_price - 1.0) * 100.0
+            if current_loss <= stop_loss_pct:
+                tomorrow_hit_stop_loss = True
+        
+        if signals_exit[-1] or tomorrow_hit_stop_loss:
+            current_signal = "SELL"
+        else:
+            current_signal = "HOLD"
+    else:
+        can_enter = False
+        if in_sl_recovery and signals_strict is not None:
+            if signals_strict[-1] and signals_long[-1]:
+                can_enter = True
+        else:
+            if signals_long[-1]:
+                can_enter = True
+
+        if can_enter:
+            current_signal = "BUY"
+        else:
+            current_signal = "WAIT"
 
     if in_pos:
         revenue = pos * closes[-1] * (1.0 - commission)
@@ -143,7 +241,7 @@ def run_simulation(signals_long, signals_exit, opens, closes, dates, initial_cap
         })
         equity[-1] = cash + revenue
 
-    return equity, trades
+    return equity, trades, current_signal
 
 def compute_metrics(equity, trades, dates, initial_capital=10000.0):
     equity_series = pd.Series(equity, index=dates)
@@ -239,6 +337,12 @@ STRATEGY_INFO = {
     "AIS08": {"type": "MINIROCKET_GPU", "name": "Macro + MiniRocketPlus AI (Probabilities) - GPU"},
     "AIS09": {"type": "MINIROCKET_STACK", "name": "Macro + MiniRocket Stack XGBoost", "stop_loss_pct": -15.0},
     "SS11": {"type": "MACRO_BASE_PURA", "name": "Macro Base Pura (Buy & Hold con Seguro Anti-Crash)", "stop_loss_pct": -15.0},
+    "SS12": {"type": "SS12", "name": "Macro + SS12 AI (Optimizado p/ 0.4% Comisiones)", "stop_loss_pct": -15.0},
+    "SS13": {"type": "SS13", "name": "Macro + SS13 AI (Optimizado p/ 0% Comisiones)", "stop_loss_pct": -15.0},
+    "SS14": {"type": "SS14", "name": "Macro + SS14 AI (Optimizado p/ 0% Comisiones)", "stop_loss_pct": -15.0},
+    "SS15": {"type": "SS15", "name": "Macro + SS15 AI (Optimizado p/ 0.4% Comisiones)", "stop_loss_pct": -15.0},
+    "AIS10": {"type": "AIS10", "name": "Macro + AIS10 AI Multi-Model (Optimizado p/ 0% Comisiones)", "stop_loss_pct": -15.0},
+    "AIS11": {"type": "AIS11", "name": "Macro + AIS11 AI Multi-Model (Optimizado p/ 0.4% Comisiones)", "stop_loss_pct": -15.0},
 }
 
 for s_id, params in STRATEGY_INFO.items():
@@ -305,17 +409,65 @@ for s_id, params in STRATEGY_INFO.items():
         desc = "SS11: Estrategia de referencia pura. Opera Buy & Hold pasivo 100% del tiempo con la única salvedad de retirarse del mercado cuando ocurre un crash sistémico (Filtro Macro Global)."
         inds = ["Buy & Hold", "SPY Macro Crash Guard"]
         pine_active = "activeExit = false\n// Pura Macro: No hay filtro activo."
+    elif stype == "SS13":
+        desc = "SS13: Optimizado para comisiones al 0%. Score: ATR (34%), Koncorde (32%), Tendencia SMA (28%), RSI (6%)."
+        inds = ["SS13 Zero Score", "SPY Macro Crash Guard"]
+        pine_active = ""
+    elif stype == "SS12":
+        desc = "SS12: Optimizado para comisiones realistas del 0.4%. Score: Volatilidad (46%), Koncorde (32%), Tendencia SMA (14%), ROC (9%)."
+        inds = ["SS12 Com Score", "SPY Macro Crash Guard"]
+        pine_active = ""
+    elif stype == "SS14":
+        desc = "SS14: Optimizado para comisiones al 0% (v3). Score: ATR_NORM (45%), ROC_3_NORM (40%), ROC_NORM (10%), VOL_EXT_NORM (5%)."
+        inds = ["SS14 Zero Score", "SPY Macro Crash Guard"]
+        pine_active = ""
+    elif stype == "SS15":
+        desc = "SS15: Optimizado para comisiones al 0.4% (v3). Score: ATR_NORM (50%), ROC_3_NORM (35%), ROC_NORM (10%), STOCH_14 (5%)."
+        inds = ["SS15 Com Score", "SPY Macro Crash Guard"]
+        pine_active = ""
+    elif stype == "AIS10":
+        desc = "AIS10: Multi-IA Optimizada para comisiones 0% (v0.2.5). Score: AI_TIMESFM (50%), ROC_3_NORM (25%), AI_TSPULSE (20%), VOL_NORM (5%)."
+        inds = ["AIS10 Zero Score", "SPY Macro Crash Guard"]
+        pine_active = ""
+    elif stype == "AIS11":
+        desc = "AIS11: Multi-IA Optimizada para comisiones 0.4% (v0.2.5). Score: AI_TSPULSE (35%), ATR_NORM (30%), ROC_3_NORM (25%), ROC_NORM (10%)."
+        inds = ["AIS11 Com Score", "SPY Macro Crash Guard"]
+        pine_active = ""
+
 
     sl_pct = params.get("stop_loss_pct")
+    
+    # Check if this strategy gets the strict SMA20 recovery logic
+    s_id = next((k for k, v in STRATEGY_INFO.items() if v == params), "")
+    is_strict_reentry = ((s_id.startswith("SS") and s_id != "SS11") or s_id in ["AIS10", "AIS11"]) and sl_pct is not None
+    
     if sl_pct is not None:
         desc += f" Incluye un Stop Loss estricto de {sl_pct}%."
+        if is_strict_reentry:
+            desc += " Tras tocar el stop-loss, exige que el precio supere la SMA 20 para volver a comprar."
+            inds.append("SMA 20 Re-entry Filter")
         inds.append(f"Stop Loss {sl_pct}%")
         pine_exit = f'\n// Stop Loss\nif strategy.position_size > 0\n    strategy.exit("Stop Loss", "Long", stop=strategy.position_avg_price * (1.0 + ({sl_pct}/100.0)))'
+        
+        if is_strict_reentry:
+            pine_exit += f'''
+// Lógica de recuperación post-StopLoss
+var bool in_sl_recovery = false
+if strategy.position_size > 0 and low <= strategy.position_avg_price * (1.0 + ({sl_pct}/100.0))
+    in_sl_recovery := true
+
+sma20 = ta.sma(close, 20)
+if in_sl_recovery and close > sma20
+    in_sl_recovery := false
+'''
     else:
         pine_exit = ""
 
     params["desc"] = desc
     params["indicators"] = inds
+    
+    entry_cmd = 'if not in_sl_recovery\n        strategy.entry("Long", strategy.long)' if is_strict_reentry else 'strategy.entry("Long", strategy.long)'
+
     params["pinescript"] = f"""//@version=5
 strategy("{params['name']}", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
 
@@ -336,7 +488,7 @@ if daysOut > 0 or activeExit
     if daysOut > 0
         daysOut := daysOut - 1
 else
-    strategy.entry("Long", strategy.long){pine_exit}
+    {entry_cmd}{pine_exit}
 
 if barstate.isfirst
     strategy.entry("Long", strategy.long)
@@ -358,7 +510,7 @@ def generate_signals(df, ticker, spy_idx, spy_ret, params, commission=0.0):
             days_out -= 1
             
     spy_exit_series = pd.Series(spy_exit_mask, index=spy_idx)
-    macro_aligned = spy_exit_series.reindex(df.index, fill_value=False).values
+    macro_aligned = spy_exit_series.reindex(df.index).ffill().fillna(False).values
     macro_crash = macro_aligned
     n = len(df)
     signals_long = np.zeros(n, dtype=bool)
@@ -560,6 +712,85 @@ def generate_signals(df, ticker, spy_idx, spy_ret, params, commission=0.0):
         es = macro_aligned
         ls = ~macro_aligned
         return ls, es
+    elif stype == "SS13":
+        score = (df['TREND_SMA'] * 28 + df['ATR_NORM'] * 34 + df['RSI_NORM'] * 6 + df['KONCORDE_MD'] * 32) / 100.0
+        active_long = score > 52
+        active_exit = score < 35
+        
+        es = macro_aligned | active_exit.values
+        ls = active_long.values & (~macro_aligned)
+        return ls, es
+    elif stype == "SS12":
+        score = (df['ROC_NORM'] * 9 + df['TREND_SMA'] * 14 + df['KONCORDE_MD'] * 32 + df['VOL_NORM'] * 46) / 100.0
+        active_long = score > 57
+        active_exit = score < 39
+        
+        es = macro_aligned | active_exit.values
+        ls = active_long.values & (~macro_aligned)
+        return ls, es
+    elif stype == "SS14":
+        score = (df['ATR_NORM'] * 45 + df['ROC_3_NORM'] * 40 + df['ROC_NORM'] * 10 + df['VOL_EXT_NORM'] * 5) / 100.0
+        active_long = score > 55
+        active_exit = score < 45
+        
+        es = macro_aligned | active_exit.values
+        ls = active_long.values & (~macro_aligned)
+        return ls, es
+    elif stype == "SS15":
+        score = (df['ATR_NORM'] * 50 + df['ROC_3_NORM'] * 35 + df['ROC_NORM'] * 10 + df['STOCH_14'] * 5) / 100.0
+        active_long = score > 55
+        active_exit = score < 45
+        
+        es = macro_aligned | active_exit.values
+        ls = active_long.values & (~macro_aligned)
+        return ls, es
+    elif stype in ["AIS10", "AIS11"]:
+        if not hasattr(generate_signals, 'timesfm_cache'):
+            try:
+                import json
+                with open("data/timesfm_signals.json", "r") as f:
+                    generate_signals.timesfm_cache = json.load(f)
+            except Exception: generate_signals.timesfm_cache = {}
+            
+        if not hasattr(generate_signals, 'tspulse_cache'):
+            try:
+                import json
+                with open("data/tspulse_signals.json", "r") as f:
+                    generate_signals.tspulse_cache = json.load(f)
+            except Exception: generate_signals.tspulse_cache = {}
+
+        s_tfm = pd.Series(generate_signals.timesfm_cache.get(ticker, {}))
+        if not s_tfm.empty: s_tfm.index = pd.to_datetime(s_tfm.index)
+        tfm_aligned = s_tfm.reindex(df.index)
+        tfm_norm = sigmoid_norm(tfm_aligned * 100.0, 2.0).values
+        valid_tfm = (~np.isnan(tfm_norm)).astype(float)
+        tfm_vals = np.where(np.isnan(tfm_norm), 0.0, tfm_norm)
+
+        s_tsp = pd.Series(generate_signals.tspulse_cache.get(ticker, {}))
+        if not s_tsp.empty: s_tsp.index = pd.to_datetime(s_tsp.index)
+        tsp_aligned = s_tsp.reindex(df.index)
+        tsp_norm = sigmoid_norm(tsp_aligned * 100.0, 2.0).values
+        valid_tsp = (~np.isnan(tsp_norm)).astype(float)
+        tsp_vals = np.where(np.isnan(tsp_norm), 0.0, tsp_norm)
+
+        if stype == "AIS10":
+            score = tfm_vals * 50 + df['ROC_3_NORM'].values * 25 + tsp_vals * 20 + df['VOL_NORM'].values * 5
+            total_w = valid_tfm * 50 + 25 + valid_tsp * 20 + 5
+            valid_rows = total_w > 0
+            score = np.where(valid_rows, score / total_w, 50.0)
+            active_long = score > 55
+            active_exit = score < 10
+        else:
+            score = tsp_vals * 35 + df['ATR_NORM'].values * 30 + df['ROC_3_NORM'].values * 25 + df['ROC_NORM'].values * 10
+            total_w = valid_tsp * 35 + 30 + 25 + 10
+            valid_rows = total_w > 0
+            score = np.where(valid_rows, score / total_w, 50.0)
+            active_long = score > 55
+            active_exit = score < 30
+
+        es = macro_aligned | active_exit
+        ls = active_long & (~macro_aligned)
+        return ls, es
             
     try:
         es = macro_aligned | active_exit.values
@@ -620,8 +851,13 @@ def run_all(commission=0.0, start_date=None, end_date=None):
             
             ls, es = generate_signals(df, ticker, spy_idx, spy_ret, s_info, commission)
             
-            eq, tr = run_simulation(ls, es, opens, closes, dates, commission=commission, stop_loss_pct=s_info.get("stop_loss_pct"))
+            signals_strict = None
+            if (s_id.startswith("SS") and s_id != "SS11") or s_id in ["AIS10", "AIS11"]:
+                signals_strict = (df['Close'] > df['SMA_20']).values
+                
+            eq, tr, current_signal = run_simulation(ls, es, opens, closes, dates, commission=commission, stop_loss_pct=s_info.get("stop_loss_pct"), signals_strict=signals_strict)
             mets, ec = compute_metrics(eq, tr, dates)
+            mets["current_signal"] = current_signal
             
             exit_label = "-"
             if mets["is_open"]:
@@ -644,6 +880,22 @@ def run_all(commission=0.0, start_date=None, end_date=None):
                 elif stype == "DONCHIAN":
                     donc = df['High'].rolling(33).max().shift(1).iloc[-1]
                     exit_label = f"${donc:.2f} (Donchian Hi)"
+                elif stype == "SS13":
+                    score_val = (df['TREND_SMA'].iloc[-1] * 28 + df['ATR_NORM'].iloc[-1] * 34 + df['RSI_NORM'].iloc[-1] * 6 + df['KONCORDE_MD'].iloc[-1] * 32) / 100.0
+                    exit_label = f"Score < 35 (Current: {score_val:.1f})"
+                elif stype == "SS12":
+                    score_val = (df['ROC_NORM'].iloc[-1] * 9 + df['TREND_SMA'].iloc[-1] * 14 + df['KONCORDE_MD'].iloc[-1] * 32 + df['VOL_NORM'].iloc[-1] * 46) / 100.0
+                    exit_label = f"Score < 39 (Current: {score_val:.1f})"
+                elif stype == "SS14":
+                    score_val = (df['ATR_NORM'].iloc[-1] * 45 + df['ROC_3_NORM'].iloc[-1] * 40 + df['ROC_NORM'].iloc[-1] * 10 + df['VOL_EXT_NORM'].iloc[-1] * 5) / 100.0
+                    exit_label = f"Score < 45 (Current: {score_val:.1f})"
+                elif stype == "SS15":
+                    score_val = (df['ATR_NORM'].iloc[-1] * 50 + df['ROC_3_NORM'].iloc[-1] * 35 + df['ROC_NORM'].iloc[-1] * 10 + df['STOCH_14'].iloc[-1] * 5) / 100.0
+                    exit_label = f"Score < 45 (Current: {score_val:.1f})"
+                elif stype == "AIS10":
+                    exit_label = "Score < 10 (AIS10 Multi-IA)"
+                elif stype == "AIS11":
+                    exit_label = "Score < 30 (AIS11 Multi-IA)"
                 elif stype == "MFI":
                     exit_label = "MFI > 85"
                 elif stype == "RELVOL":

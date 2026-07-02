@@ -189,12 +189,18 @@ document.addEventListener("DOMContentLoaded", () => {
     elTickerFilter.addEventListener("change", (e) => {
         activeFilter = e.target.value;
         
+        if (activeFilter !== "GLOBAL") {
+            currentTicker = activeFilter;
+        } else {
+            currentTicker = "SPY";
+        }
+        
         // Re-render sidebar rankings
         renderSidebarRanking();
         
-        // If we have selected a strategy, update its dashboard header rank as well
+        // If we have selected a strategy, update the entire dashboard (metrics, chart, rank)
         if (selectedStrategyId) {
-            updateDashboardHeaderRank();
+            selectStrategy(selectedStrategyId);
         }
     });
 
@@ -505,6 +511,16 @@ document.addEventListener("DOMContentLoaded", () => {
     // -------------------------------------------------------------------------
     // 6. Cross-Ticker Breakdown Table
     // -------------------------------------------------------------------------
+    function getSignalBadge(signal) {
+        if (signal === "BUY") {
+            return '<span style="color: #39ff14; font-weight: bold; text-shadow: 0 0 5px #39ff14;">BUY</span>';
+        } else if (signal === "SELL") {
+            return '<span style="color: #ff3333; font-weight: bold;">SELL</span>';
+        } else {
+            return `<span style="color: #888888; font-weight: bold;">${signal || "WAIT"}</span>`;
+        }
+    }
+
     function populateComparisonTable(strategy) {
         elCompareTableBody.innerHTML = "";
         
@@ -530,7 +546,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td>${tkData.metrics.sharpe.toFixed(2)}</td>
                 <td>${tkData.metrics.num_trades}</td>
                 <td>${tkData.metrics.win_rate.toFixed(1)}%</td>
-                <td class="${tkData.metrics.is_open ? 'text-success font-bold' : ''}">${tkData.metrics.is_open ? 'SÍ' : 'NO'}</td>
+                <td>${getSignalBadge(tkData.metrics.current_signal)}</td>
                 <td>${tkData.metrics.exit_threshold || '-'}</td>
                 <td class="live-price-cell" data-ticker="${tk}" data-last-price="${tkData.metrics.current_price}">$${tkData.metrics.current_price.toFixed(2)}</td>
                 <td>
@@ -608,7 +624,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td>${tkData.metrics.sharpe.toFixed(2)}</td>
                 <td>${tkData.metrics.num_trades}</td>
                 <td>${tkData.metrics.win_rate.toFixed(1)}%</td>
-                <td class="${tkData.metrics.is_open ? 'text-success font-bold' : ''}">${tkData.metrics.is_open ? 'SÍ' : 'NO'}</td>
+                <td>${getSignalBadge(tkData.metrics.current_signal)}</td>
                 <td>
                     <span class="badge ${tkData.outperformed ? 'badge-success' : 'badge-danger'}">
                         ${tkData.outperformed ? 'Superó B&H' : 'No Superó'}

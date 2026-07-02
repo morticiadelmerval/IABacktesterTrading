@@ -1,0 +1,272 @@
+[
+    {
+        "strategy": "SS01",
+        "baseline_winrate": 5,
+        "baseline_avg_ret": 2078.115386046847,
+        "best_entry": "Baseline_AlwaysIn",
+        "best_winrate": 5,
+        "best_avg_ret": 2078.115386046847,
+        "all_metrics": {
+            "Baseline_AlwaysIn": {
+                "winrate": 5,
+                "avg_ret": 2078.115386046847
+            },
+            "SMA20_Cross": {
+                "winrate": 3,
+                "avg_ret": 1519.1947481357377
+            },
+            "SMA50_Cross": {
+                "winrate": 3,
+                "avg_ret": 909.3118772920966
+            },
+            "RSI_Oversold_40": {
+                "winrate": 3,
+                "avg_ret": 943.8239910070245
+            },
+            "RSI_Oversold_30": {
+                "winrate": 2,
+                "avg_ret": 482.56899482593406
+            },
+            "RSI_Momentum_50": {
+                "winrate": 3,
+                "avg_ret": 1791.8387411648446
+            },
+            "ROC3_Pullback": {
+                "winrate": 4,
+                "avg_ret": 1038.0578711294747
+            },
+            "ROC3_Momentum": {
+                "winrate": 3,
+                "avg_ret": 1677.6201866327438
+            },
+            "MFI_Oversold_30": {
+                "winrate": 0,
+                "avg_ret": 452.6184424264665
+            },
+            "MFI_Oversold_20": {
+                "winrate": 2,
+                "avg_ret": 149.4517782545287
+            },
+            "BB_Lower_Touch": {
+                "winrate": 1,
+                "avg_ret": 661.8657598204427
+            }
+        }
+    },
+    {
+        "strategy": "SS02",
+        "baseline_winrate": 3,
+        "baseline_avg_ret": 2186.505369620603,
+        "best_entry": "RSI_Momentum_50",
+        "best_winrate": 5,
+        "best_avg_ret": 1995.6895238069312,
+        "all_metrics": {
+            "Baseline_AlwaysIn": {
+                "winrate": 3,
+                "avg_ret": 2186.505369620603
+            },
+            "SMA20_Cross": {
+                "winrate": 3,
+                "avg_ret": 1668.0648545483918
+            },
+            "SMA50_Cross": {
+                "winrate": 3,
+                "avg_ret": 1005.7358161113186
+            },
+            "RSI_Oversold_40": {
+                "winrate": 4,
+                "avg_ret": 960.1805920317543
+            },
+            "RSI_Oversold_30": {
+                "winrate": 2,
+                "avg_ret": 487.41299208642
+            },
+            "RSI_Momentum_50": {
+                "winrate": 5,
+                "avg_ret": 1995.6895238069312
+            },
+            "ROC3_Pullback": {
+                "winrate": 4,
+                "avg_ret": 1009.8667369368499
+            },
+            "ROC3_Momentum": {
+                "winrate": 2,
+                "avg_ret": 1803.8236234201515
+            },
+            "MFI_Oversold_30": {
+                "winrate": 0,
+                "avg_ret": 453.1250660230467
+            },
+            "MFI_Oversold_20": {
+                "winrate": 1,
+                "avg_ret": 165.63558321671877
+            },
+            "BB_Lower_Touch": {
+                "winrate": 1,
+                "avg_ret": 616.8357105200344
+            }
+        }
+    },
+    {
+        "strategy": "SS03",
+        "baseline_winrate": 3,
+        "baseline_avg_ret": 1721.094848365129,
+        "best_entry": "ROC3_Pullback",
+        "best_winrate": 5,
+        "best_avg_ret": 935.1630468324119,
+        "all_metrics": {
+            "Baseline_AlwaysIn": {
+                "winrate": 3,
+                "avg_ret": 1721.094848365129
+            },
+            "SMA20_Cross": {
+                "winrate": 2,
+                "avg_ret": 1242.6599249664507
+            },
+            "SMA50_Cross": {
+                "winrate": 2,
+                "avg_ret": 796.9071565525484
+            },
+            "RSI_Oversold_40": {
+                "winrate": 1,
+                "avg_ret": 776.5051508428792
+            },
+            "RSI_Oversold_30": {
+                "winrate": 2,
+                "avg_ret": 434.8908133099147
+            },
+            "RSI_Momentum_50": {
+                "winrate": 2,
+                "avg_ret": 1479.414964888548
+            },
+            "ROC3_Pullback": {
+                "winrate": 5,
+                "avg_ret": 935.1630468324119
+            },
+            "ROC3_Momentum": {
+                "winrate": 2,
+                "avg_ret": 1323.8792426449145
+            },
+            "MFI_Oversold_30": {
+                "winrate": 0,
+                "avg_ret": 326.0423334172358
+            },
+            "MFI_Oversold_20": {
+                "winrate": 0,
+                "avg_ret": 127.69231649522791
+            },
+            "BB_Lower_Touch": {
+                "winrate": 1,
+                "avg_ret": 554.2993362873741
+            }
+        }
+    },
+    {
+        "strategy": "SS04",
+        "baseline_winrate": 15,
+        "baseline_avg_ret": 2959.2852496247447,
+        "best_entry": "Baseline_AlwaysIn",
+        "best_winrate": 15,
+        "best_avg_ret": 2959.2852496247447,
+        "all_metrics": {
+            "Baseline_AlwaysIn": {
+                "winrate": 15,
+                "avg_ret": 2959.2852496247447
+            },
+            "SMA20_Cross": {
+                "winrate": 10,
+                "avg_ret": 2245.843474229266
+            },
+            "SMA50_Cross": {
+                "winrate": 6,
+                "avg_ret": 1603.550371020835
+            },
+            "RSI_Oversold_40": {
+                "winrate": 6,
+                "avg_ret": 1792.5288690640036
+            },
+            "RSI_Oversold_30": {
+                "winrate": 3,
+                "avg_ret": 1103.1700706518304
+            },
+            "RSI_Momentum_50": {
+                "winrate": 10,
+                "avg_ret": 2356.50199494188
+            },
+            "ROC3_Pullback": {
+                "winrate": 9,
+                "avg_ret": 1952.5711006442862
+            },
+            "ROC3_Momentum": {
+                "winrate": 9,
+                "avg_ret": 2533.2080829762986
+            },
+            "MFI_Oversold_30": {
+                "winrate": 3,
+                "avg_ret": 1058.2251909213967
+            },
+            "MFI_Oversold_20": {
+                "winrate": 3,
+                "avg_ret": 498.5685581156878
+            },
+            "BB_Lower_Touch": {
+                "winrate": 2,
+                "avg_ret": 1239.6261126008537
+            }
+        }
+    },
+    {
+        "strategy": "SS05",
+        "baseline_winrate": 8,
+        "baseline_avg_ret": 2342.7888615665684,
+        "best_entry": "Baseline_AlwaysIn",
+        "best_winrate": 8,
+        "best_avg_ret": 2342.7888615665684,
+        "all_metrics": {
+            "Baseline_AlwaysIn": {
+                "winrate": 8,
+                "avg_ret": 2342.7888615665684
+            },
+            "SMA20_Cross": {
+                "winrate": 5,
+                "avg_ret": 1780.5950026450653
+            },
+            "SMA50_Cross": {
+                "winrate": 2,
+                "avg_ret": 1019.4767551973424
+            },
+            "RSI_Oversold_40": {
+                "winrate": 4,
+                "avg_ret": 1056.5204292589947
+            },
+            "RSI_Oversold_30": {
+                "winrate": 3,
+                "avg_ret": 509.69893549981305
+            },
+            "RSI_Momentum_50": {
+                "winrate": 5,
+                "avg_ret": 2104.0238863736613
+            },
+            "ROC3_Pullback": {
+                "winrate": 6,
+                "avg_ret": 1138.0278636495593
+            },
+            "ROC3_Momentum": {
+                "winrate": 5,
+                "avg_ret": 1938.286568051949
+            },
+            "MFI_Oversold_30": {
+                "winrate": 0,
+                "avg_ret": 501.00419839770234
+            },
+            "MFI_Oversold_20": {
+                "winrate": 2,
+                "avg_ret": 202.24427739612764
+            },
+            "BB_Lower_Touch": {
+                "winrate": 1,
+                "avg_ret": 679.5962329114406
+            }
+        }
+    }
+]

@@ -149,7 +149,7 @@ def run_minirocket_training():
                     date_str = df.index[date_idx].strftime("%Y-%m-%d")
                     all_oos_preds[date_str] = int(test_preds[j])
         
-        # Calcular accuracy OOS usando índice pre-construido
+        # Calcular accuracy OOS usando indice pre-construido
         date_to_label = {}
         for wi in range(len(windows)):
             di = CONTEXT_LEN + wi
@@ -157,10 +157,50 @@ def run_minirocket_training():
                 date_to_label[df.index[di].strftime("%Y-%m-%d")] = labels[wi]
         
         oos_correct = sum(1 for d, p in all_oos_preds.items() if date_to_label.get(d) == p)
-        oos_total = len(all_oos_preds)
+        oos_total = sum(1 for d in all_oos_preds.keys() if d in date_to_label)
         
         acc = (oos_correct / oos_total * 100) if oos_total > 0 else 0.0
-        print(f"OOS Accuracy: {acc:.1f}% ({oos_total} signals)")
+        print(f"OOS Accuracy: {acc:.1f}% ({oos_total} signals evaluadas)")
+        
+        # --- PREDICT LIVE EDGE ---
+        live_windows = []
+        live_dates = []
+        max_labeled_i = len(returns) - CONTEXT_LEN - FORECAST_HORIZON
+        for i in range(max_labeled_i + 1, len(returns) - CONTEXT_LEN + 1):
+            if i >= 0:
+                live_windows.append(returns[i : i + CONTEXT_LEN])
+                date_idx = i + CONTEXT_LEN - 1
+                if date_idx < len(df):
+                    live_dates.append(df.index[date_idx].strftime("%Y-%m-%d"))
+                    
+        if len(live_windows) > 0:
+            if 'clf' not in locals():
+                print(f"    [Live Edge] Entrenando modelo rapido para inferencia en vivo...", end=" ", flush=True)
+                X_train = X_3d[-min_train_size:]
+                y_train = labels[-min_train_size:]
+                from tsai.models.MINIROCKET_Pytorch import MiniRocketFeatures
+                minirocket = MiniRocketFeatures(c_in=1, seq_len=CONTEXT_LEN).to(device)
+                X_train_tensor = torch.tensor(X_train, dtype=torch.float32).to(device)
+                minirocket.fit(X_train_tensor)
+                with torch.no_grad():
+                    X_train_tf = minirocket(X_train_tensor).cpu().numpy()
+                from sklearn.preprocessing import StandardScaler
+                scaler = StandardScaler(with_mean=False)
+                X_train_scaled = scaler.fit_transform(X_train_tf)
+                from sklearn.linear_model import RidgeClassifier
+                clf = RidgeClassifier()
+                clf.fit(X_train_scaled, y_train)
+                print("OK.")
+                
+            X_live_3d = np.array(live_windows).reshape(len(live_windows), 1, CONTEXT_LEN)
+            X_live_tensor = torch.tensor(X_live_3d, dtype=torch.float32).to(device)
+            with torch.no_grad():
+                X_live_tf = minirocket(X_live_tensor).cpu().numpy()
+            X_live_scaled = scaler.transform(X_live_tf)
+            live_preds = clf.predict(X_live_scaled)
+            
+            for j, d_str in enumerate(live_dates):
+                all_oos_preds[d_str] = int(live_preds[j])
         
         predictions_cache[tk] = all_oos_preds
     

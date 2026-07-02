@@ -1,0 +1,20 @@
+{
+    "indicators": [
+        "ROC_NORM",
+        "TREND_SMA",
+        "KONCORDE_MD",
+        "VOL_NORM"
+    ],
+    "weights": [
+        9,
+        14,
+        32,
+        46
+    ],
+    "entry_th": 57,
+    "exit_th": 39,
+    "beats_bh": 1,
+    "avg_return": 619.9861305077552,
+    "total_trades": 1257,
+    "fitness": 619.9861305077552
+}
