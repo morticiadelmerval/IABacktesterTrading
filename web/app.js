@@ -127,7 +127,96 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
             showNoSelectionState(true);
         }
+
+        checkAIStatus();
     }
+
+    let aiStatusInterval = null;
+    let wasRunningAI = false;
+
+    async function checkAIStatus() {
+        try {
+            const res = await fetch("/api/ai-status");
+            if (!res.ok) return;
+            const data = await res.json();
+            updateAIBanner(data);
+            
+            if (data.status === "running") {
+                wasRunningAI = true;
+                if (!aiStatusInterval) {
+                    aiStatusInterval = setInterval(checkAIStatus, 3000);
+                }
+            } else {
+                if (aiStatusInterval) {
+                    clearInterval(aiStatusInterval);
+                    aiStatusInterval = null;
+                }
+                if (wasRunningAI && data.status === "up_to_date") {
+                    wasRunningAI = false;
+                    loadDatabase();
+                }
+            }
+        } catch (e) {
+            console.warn("No se pudo verificar estado de IA:", e);
+        }
+    }
+
+    function updateAIBanner(data) {
+        const banner = document.getElementById("ai-status-banner");
+        const title = document.getElementById("ai-banner-title");
+        const desc = document.getElementById("ai-banner-desc");
+        const btn = document.getElementById("ai-update-btn");
+        const badge = document.getElementById("ai-status-badge");
+        if (!banner) return;
+
+        function formatDDMMAAAA(dateStr) {
+            if (!dateStr || dateStr === "Desconocido") return dateStr;
+            const parts = dateStr.split("-");
+            if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            return dateStr;
+        }
+
+        const aiDateFmt = formatDDMMAAAA(data.last_ai_date);
+        const mktDateFmt = formatDDMMAAAA(data.latest_market_date);
+
+        banner.classList.remove("hidden", "warning", "running", "success");
+        if (btn) btn.classList.add("hidden");
+        if (badge) badge.classList.add("hidden");
+
+        if (data.status === "outdated") {
+            banner.classList.add("warning");
+            if (title) title.textContent = "⚠️ Predicciones de IA Desactualizadas";
+            if (desc) desc.textContent = `Las señales calculadas llegan hasta el ${aiDateFmt}, pero el mercado avanzó hasta el ${mktDateFmt}. Puedes recalcular en 2º plano.`;
+            if (btn) btn.classList.remove("hidden");
+        } else if (data.status === "running") {
+            banner.classList.add("running");
+            if (title) title.textContent = "⏳ Actualizando Oráculo IA en GPU (Segundo Plano)";
+            if (desc) desc.textContent = `${data.step_name || 'Calculando modelos neuronales...'} ${data.step ? `(Paso ${data.step}/${data.total})` : ''}`;
+        } else if (data.status === "up_to_date") {
+            banner.classList.add("success");
+            if (title) title.textContent = "✨ Oráculo IA Sincronizado";
+            if (desc) desc.textContent = `Modelos neuronales 100% al día con el mercado (${aiDateFmt}).`;
+            if (badge) {
+                badge.classList.remove("hidden");
+                badge.textContent = "Al día";
+            }
+        } else {
+            banner.classList.add("hidden");
+        }
+    }
+
+    window.startAIUpdate = async function() {
+        const btn = document.getElementById("ai-update-btn");
+        if (btn) btn.classList.add("hidden");
+        try {
+            await fetch("/api/update-ai", { method: "POST" });
+            checkAIStatus();
+        } catch (e) {
+            console.error("Error iniciando actualización:", e);
+        }
+    };
 
     // -------------------------------------------------------------------------
     // 2. Sidebar Rendering & Sorting

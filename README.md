@@ -15,36 +15,30 @@ Combina un motor de cálculo de alta velocidad escrito en **Python** con un **Da
 * **Filtros por Fechas y Cálculo Dinámico de Comisiones:** El servidor backend recalcula los 30 años de trades en milisegundos si ajustas las comisiones del broker o filtras por rangos de fechas personalizados.
 * **Exportación a TradingView (Pine Script):** Cada estrategia te entrega su propio código generado dinámicamente en Pine Script v5 para configurar alertas en tiempo real (con inclusión de Stop Loss automático y filtros de recuperación SMA20).
 
-## 🚀 Requisitos de Instalación
+## 🚀 Cómo Instalar y Ejecutar el Dashboard
 
-**Para usuarios de Windows con tarjeta gráfica NVIDIA (Recomendado):**
-Hemos preparado un instalador automático que creará tu entorno virtual, instalará todas las dependencias necesarias y descargará automáticamente los modelos pre-entrenados de IA (TimesFM y TSPulse) que pesan varios Gigabytes. 
-Solo debes dar doble clic en el archivo o ejecutar en la consola:
+Para empezar a utilizar el laboratorio cuantitativo en Windows (se recomienda tarjeta gráfica NVIDIA), sigue estos 3 sencillos pasos en orden:
+
+### 1️⃣ Instalar dependencias y modelos
+Haz doble clic o ejecuta en tu consola el instalador automático. Este script creará tu entorno virtual, instalará todas las librerías necesarias y descargará los pesos pre-entrenados de Inteligencia Artificial (Google TimesFM e IBM TSPulse):
 ```bash
 install_windows_nvidia.bat
 ```
 
-*(Si eres un usuario avanzado o usas Linux/Mac, puedes revisar el código del instalador para replicar las dependencias o correr simplemente `uv sync`).*
-
-Para aprovechar todas las estrategias de Inteligencia Artificial (AIS01 a AIS11) se requiere aceleración por hardware (NVIDIA GPU).
-
-## 💻 ¿Cómo ejecutar el Dashboard?
-
-1. Abre tu terminal en el directorio del proyecto.
-2. **Actualizar la Inteligencia Artificial (Diario/Semanal):**
-   Para pre-calcular las predicciones de los modelos locales (Google TimesFM, IBM TSPulse, MiniRocket, XGBoost Stack), ejecuta el archivo de actualización. Este proceso utiliza una **Caché Incremental Inteligente**, por lo que solo calculará los días nuevos que falten, demorando solo segundos si se corre a diario:
+### 2️⃣ Actualizar las señales de IA (Diario/Semanal)
+Antes de abrir el dashboard, ejecuta el actualizador para descargar las velas más recientes de la Bolsa y entrenar los modelos locales (MiniRocket y XGBoost). Gracias a su **Caché Incremental Inteligente**, en el uso diario este proceso solo toma unos segundos:
 ```bash
 actualizar_ia.bat
 ```
-3. Ejecuta el motor completo para cargar los datos y evaluar el rendimiento:
+
+### 3️⃣ Abrir el Dashboard Interactivo
+Para iniciar el servidor local y abrir la interfaz gráfica automáticamente en tu navegador web, simplemente ejecuta:
 ```bash
-uv run python backtester.py
+run_dashboard.bat
 ```
-4. Ejecuta el servidor API local y levanta el Dashboard:
-```bash
-uv run python web/server.py
-```
-5. Abre tu navegador web y ve a la dirección: **http://localhost:8000**
+
+> [!TIP]
+> **Actualización desde la Web:** Una vez dentro del Dashboard, verás un **banner superior** con un botón interactivo que te permite actualizar los datos del mercado y re-calcular las señales de los modelos de IA directamente desde tu navegador con un solo clic.
 
 ## 📐 Arquitectura del Proyecto
 
@@ -72,6 +66,11 @@ uv run python web/server.py
 * **Mejoras en el Dashboard y API**:
   * Capacidad de filtrado por rangos de fechas personalizados directamente desde la interfaz web.
   * Homologación y alineación de calendarios bursátiles con `ffill` entre los optimizadores y el motor principal.
+
+## 📄 Licencia
+
+Este proyecto se distribuye bajo la **Licencia MIT (MIT License)**.
+Esto significa que tienes **libertad total** para descargar, usar, modificar, hacer forks, integrar e incluso comercializar o ganar dinero con este software sin ninguna restricción ni necesidad de pagar regalías o pedir permiso, siempre y cuando mantengas el aviso de copyright original del archivo `LICENSE`.
 
 ## ⚠️ Descargo de Responsabilidad
 

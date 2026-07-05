@@ -335,6 +335,23 @@
                     </div>
                 </div>
 
+                <!-- AI UPDATE STATUS BANNER -->
+                <div id="ai-status-banner" class="ai-status-banner hidden">
+                    <div class="ai-banner-icon">
+                        <i id="ai-banner-icon-el" class="fa-solid fa-robot"></i>
+                    </div>
+                    <div class="ai-banner-text">
+                        <h4 id="ai-banner-title">Estado del Oráculo IA</h4>
+                        <p id="ai-banner-desc">Comprobando sincronización de modelos...</p>
+                    </div>
+                    <div class="ai-banner-action">
+                        <button id="ai-update-btn" class="btn btn-ai-update hidden" onclick="startAIUpdate()">
+                            <i class="fa-solid fa-bolt"></i> Actualizar IA en 2º Plano
+                        </button>
+                        <span id="ai-status-badge" class="badge-status hidden">Al día</span>
+                    </div>
+                </div>
+
                 <!-- PINE SCRIPT VIEW & COPY SECTION -->
                 <section class="pinescript-panel" id="pinescript-section">
                     <div class="panel-header">

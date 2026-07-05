@@ -1096,3 +1096,111 @@ tr:hover td {
     font-family: var(--font-mono);
     line-height: 1.6;
 }
+
+/* AI STATUS BANNER STYLES */
+.ai-status-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.3s ease;
+}
+
+.ai-status-banner.hidden {
+    display: none !important;
+}
+
+.ai-status-banner.warning {
+    background: linear-gradient(135deg, rgba(255, 171, 0, 0.1), rgba(255, 145, 0, 0.05));
+    border-color: rgba(255, 171, 0, 0.3);
+    box-shadow: 0 0 20px rgba(255, 171, 0, 0.15);
+}
+
+.ai-status-banner.running {
+    background: linear-gradient(135deg, rgba(0, 229, 255, 0.1), rgba(41, 121, 255, 0.05));
+    border-color: rgba(0, 229, 255, 0.3);
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
+}
+
+.ai-status-banner.success {
+    background: linear-gradient(135deg, rgba(0, 230, 118, 0.1), rgba(0, 200, 83, 0.05));
+    border-color: rgba(0, 230, 118, 0.3);
+}
+
+.ai-banner-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+}
+
+.ai-status-banner.warning .ai-banner-icon {
+    background: rgba(255, 171, 0, 0.15);
+    color: #ffab00;
+}
+
+.ai-status-banner.running .ai-banner-icon {
+    background: rgba(0, 229, 255, 0.15);
+    color: #00e5ff;
+    animation: spin 3s linear infinite;
+}
+
+.ai-status-banner.success .ai-banner-icon {
+    background: rgba(0, 230, 118, 0.15);
+    color: #00e676;
+}
+
+.ai-banner-text {
+    flex-grow: 1;
+}
+
+.ai-banner-text h4 {
+    font-family: var(--font-header);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 0 0 4px 0;
+}
+
+.ai-banner-text p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.btn-ai-update {
+    background: linear-gradient(135deg, #ffab00, #ff6d00);
+    color: #000;
+    font-weight: 700;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-ai-update:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(255, 171, 0, 0.4);
+}
+
+.badge-status {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(0, 230, 118, 0.15);
+    color: #00e676;
+    border: 1px solid rgba(0, 230, 118, 0.3);
+}

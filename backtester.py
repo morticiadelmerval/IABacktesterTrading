@@ -412,27 +412,101 @@ for s_id, params in STRATEGY_INFO.items():
     elif stype == "SS13":
         desc = "SS13: Optimizado para comisiones al 0%. Score: ATR (34%), Koncorde (32%), Tendencia SMA (28%), RSI (6%)."
         inds = ["SS13 Zero Score", "SPY Macro Crash Guard"]
-        pine_active = ""
+        pine_active = """// Indicadores SS13
+sma50 = ta.sma(close, 50)
+trendSma = (close - sma50) / sma50 * 100.0
+trendNorm = 100.0 / (1.0 + math.exp(-trendSma / 5.0))
+
+atr14 = ta.sma(ta.tr(true), 14)
+atrNorm = 100.0 / (1.0 + math.exp(-((atr14 / close) * 100.0) / 2.0))
+
+rsiNorm = ta.rsi(close, 14)
+
+ret1 = (close - close[1]) / close[1]
+pviChange = volume > volume[1] ? ret1 : 0.0
+var float pvi = 1000.0
+pvi := pvi * (1.0 + nz(pviChange))
+emaPvi = ta.ema(pvi, 15)
+scalePvi = ta.stdev(pvi, 100)
+scalePviSafe = scalePvi == 0 or na(scalePvi) ? 1.0 : scalePvi
+koncordeMd = 100.0 / (1.0 + math.exp(-(pvi - emaPvi) / scalePviSafe))
+
+ss13Score = (trendNorm * 28.0 + atrNorm * 34.0 + rsiNorm * 6.0 + koncordeMd * 32.0) / 100.0
+activeEntry = ss13Score > 52.0
+activeExit  = ss13Score < 35.0"""
     elif stype == "SS12":
         desc = "SS12: Optimizado para comisiones realistas del 0.4%. Score: Volatilidad (46%), Koncorde (32%), Tendencia SMA (14%), ROC (9%)."
         inds = ["SS12 Com Score", "SPY Macro Crash Guard"]
-        pine_active = ""
+        pine_active = """// Indicadores SS12
+volSma20 = ta.sma(volume, 20)
+relVol = volume / volSma20
+volNorm = 100.0 / (1.0 + math.exp(-(relVol - 1.0) / 1.0))
+
+roc5 = ta.roc(close, 5)
+rocNorm = 100.0 / (1.0 + math.exp(-roc5 / 5.0))
+
+sma50 = ta.sma(close, 50)
+trendSma = (close - sma50) / sma50 * 100.0
+trendNorm = 100.0 / (1.0 + math.exp(-trendSma / 5.0))
+
+ret1 = (close - close[1]) / close[1]
+pviChange = volume > volume[1] ? ret1 : 0.0
+var float pvi = 1000.0
+pvi := pvi * (1.0 + nz(pviChange))
+emaPvi = ta.ema(pvi, 15)
+scalePvi = ta.stdev(pvi, 100)
+scalePviSafe = scalePvi == 0 or na(scalePvi) ? 1.0 : scalePvi
+koncordeMd = 100.0 / (1.0 + math.exp(-(pvi - emaPvi) / scalePviSafe))
+
+ss12Score = (rocNorm * 9.0 + trendNorm * 14.0 + koncordeMd * 32.0 + volNorm * 46.0) / 100.0
+activeEntry = ss12Score > 57.0
+activeExit  = ss12Score < 39.0"""
     elif stype == "SS14":
         desc = "SS14: Optimizado para comisiones al 0% (v3). Score: ATR_NORM (45%), ROC_3_NORM (40%), ROC_NORM (10%), VOL_EXT_NORM (5%)."
         inds = ["SS14 Zero Score", "SPY Macro Crash Guard"]
-        pine_active = ""
+        pine_active = """// Indicadores SS14
+atr14 = ta.sma(ta.tr(true), 14)
+atrNorm = 100.0 / (1.0 + math.exp(-((atr14 / close) * 100.0) / 2.0))
+
+roc3 = ta.roc(close, 3)
+roc3Norm = 100.0 / (1.0 + math.exp(-roc3 / 5.0))
+
+roc5 = ta.roc(close, 5)
+rocNorm = 100.0 / (1.0 + math.exp(-roc5 / 5.0))
+
+volSma20 = ta.sma(volume, 20)
+relVol = volume / volSma20
+volExtNorm = 100.0 / (1.0 + math.exp(-(relVol - 2.0) / 1.0))
+
+ss14Score = (atrNorm * 45.0 + roc3Norm * 40.0 + rocNorm * 10.0 + volExtNorm * 5.0) / 100.0
+activeEntry = ss14Score > 55.0
+activeExit  = ss14Score < 45.0"""
     elif stype == "SS15":
         desc = "SS15: Optimizado para comisiones al 0.4% (v3). Score: ATR_NORM (50%), ROC_3_NORM (35%), ROC_NORM (10%), STOCH_14 (5%)."
         inds = ["SS15 Com Score", "SPY Macro Crash Guard"]
-        pine_active = ""
+        pine_active = """// Indicadores SS15
+atr14 = ta.sma(ta.tr(true), 14)
+atrNorm = 100.0 / (1.0 + math.exp(-((atr14 / close) * 100.0) / 2.0))
+
+roc3 = ta.roc(close, 3)
+roc3Norm = 100.0 / (1.0 + math.exp(-roc3 / 5.0))
+
+roc5 = ta.roc(close, 5)
+rocNorm = 100.0 / (1.0 + math.exp(-roc5 / 5.0))
+
+stoch14 = ta.stoch(close, high, low, 14)
+
+ss15Score = (atrNorm * 50.0 + roc3Norm * 35.0 + rocNorm * 10.0 + stoch14 * 5.0) / 100.0
+activeEntry = ss15Score > 55.0
+activeExit  = ss15Score < 45.0"""
     elif stype == "AIS10":
         desc = "AIS10: Multi-IA Optimizada para comisiones 0% (v0.2.5). Score: AI_TIMESFM (50%), ROC_3_NORM (25%), AI_TSPULSE (20%), VOL_NORM (5%)."
         inds = ["AIS10 Zero Score", "SPY Macro Crash Guard"]
-        pine_active = ""
+        pine_active = "// [ADVERTENCIA] Los modelos locales de IA (TimesFM/TSPulse) no se pueden evaluar en TradingView.\n// Se aplica únicamente el Filtro Macro Global:\nactiveExit = false"
     elif stype == "AIS11":
         desc = "AIS11: Multi-IA Optimizada para comisiones 0.4% (v0.2.5). Score: AI_TSPULSE (35%), ATR_NORM (30%), ROC_3_NORM (25%), ROC_NORM (10%)."
         inds = ["AIS11 Com Score", "SPY Macro Crash Guard"]
-        pine_active = ""
+        pine_active = "// [ADVERTENCIA] Los modelos locales de IA (TimesFM/TSPulse) no se pueden evaluar en TradingView.\n// Se aplica únicamente el Filtro Macro Global:\nactiveExit = false"
 
 
     sl_pct = params.get("stop_loss_pct")
@@ -466,7 +540,10 @@ if in_sl_recovery and close > sma20
     params["desc"] = desc
     params["indicators"] = inds
     
-    entry_cmd = 'if not in_sl_recovery\n        strategy.entry("Long", strategy.long)' if is_strict_reentry else 'strategy.entry("Long", strategy.long)'
+    if stype in ["SS12", "SS13", "SS14", "SS15"]:
+        entry_cmd = 'if activeEntry and not in_sl_recovery\n        strategy.entry("Long", strategy.long)' if is_strict_reentry else 'if activeEntry\n        strategy.entry("Long", strategy.long)'
+    else:
+        entry_cmd = 'if not in_sl_recovery\n        strategy.entry("Long", strategy.long)' if is_strict_reentry else 'strategy.entry("Long", strategy.long)'
 
     params["pinescript"] = f"""//@version=5
 strategy("{params['name']}", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
