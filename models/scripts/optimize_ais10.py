@@ -295,42 +295,49 @@ def optimize_strategies():
                 beats += 1
                 
         avg_ret = total_ret / len(TICKERS)
-        if total_trades >= 360:
+        if total_trades >= 270:
             fitness = avg_ret
         else:
-            diff = 360 - total_trades
+            diff = 270 - total_trades
             fitness = avg_ret * np.exp(-diff / 100.0)
             
         return fitness, avg_ret, beats, total_trades
 
-    best_zero = {"fitness": -999999, "beats_bh": 0}
-    best_com = {"fitness": -999999, "beats_bh": 0}
+    best_ais10 = {"fitness": -999999, "beats_bh": 0}
+    best_ais11 = {"fitness": -999999, "beats_bh": 0}
+    best_ss14 = {"fitness": -999999, "beats_bh": 0}
+    best_ss15 = {"fitness": -999999, "beats_bh": 0}
     
-    if os.path.exists("data/ais10_zero_params.json"):
-        try:
-            with open("data/ais10_zero_params.json") as f:
-                bz = json.load(f)
-            fit, ret, beats, tr = evaluate(bz["indicators"], bz["weights"], bz["entry_th"], bz["exit_th"], 0.0)
-            best_zero = {
-                "indicators": bz["indicators"], "weights": bz["weights"], "entry_th": bz["entry_th"], "exit_th": bz["exit_th"],
-                "beats_bh": beats, "avg_return": ret, "total_trades": tr, "fitness": fit
-            }
-            print(f"Loaded baseline AIS10 (0% com): Fit={fit:.0f} | Ret={ret:.0f}% | Beats={beats}/18 | Trades={tr}")
-        except Exception as e:
-            print("Could not load baseline AIS10:", e)
+    import argparse
+    parser = argparse.ArgumentParser(description="Optimize AIS10/AIS11 and SS14/SS15 strategies")
+    parser.add_argument("--limit", type=int, default=3060, help="Max number of indicator groups to evaluate")
+    parser.add_argument("--ignore-baseline", action="store_true", help="Do not load existing JSON params as baseline")
+    args, _ = parser.parse_known_args()
+    max_groups = args.limit
 
-    if os.path.exists("data/ais11_com_params.json"):
-        try:
-            with open("data/ais11_com_params.json") as f:
-                bc = json.load(f)
-            fit, ret, beats, tr = evaluate(bc["indicators"], bc["weights"], bc["entry_th"], bc["exit_th"], 0.004)
-            best_com = {
-                "indicators": bc["indicators"], "weights": bc["weights"], "entry_th": bc["entry_th"], "exit_th": bc["exit_th"],
-                "beats_bh": beats, "avg_return": ret, "total_trades": tr, "fitness": fit
-            }
-            print(f"Loaded baseline AIS11 (0.4% com): Fit={fit:.0f} | Ret={ret:.0f}% | Beats={beats}/18 | Trades={tr}")
-        except Exception as e:
-            print("Could not load baseline AIS11:", e)
+    # Cargar baselines o evaluar defaults
+    baselines = [
+        ("data/ais10_zero_params.json", "AIS10", 0.0, best_ais10, {"indicators": ["AI_MINIROCKET_BIN", "AI_TIMESFM", "KONCORDE_MD", "ROC_NORM"], "weights": [10, 55, 15, 20], "entry_th": 60, "exit_th": 15}),
+        ("data/ais11_com_params.json", "AIS11", 0.004, best_ais11, {"indicators": ["AI_MINIROCKET_GPU", "AI_TIMESFM", "AI_TSPULSE", "ROC_3_NORM"], "weights": [5, 20, 65, 10], "entry_th": 55, "exit_th": 5}),
+        ("data/ss14_zero_params.json", "SS14", 0.0, best_ss14, {"indicators": ["ROC_3_NORM", "ROC_NORM", "VOL_EXT_NORM", "ATR_NORM"], "weights": [40, 10, 5, 45], "entry_th": 55, "exit_th": 45}),
+        ("data/ss15_com_params.json", "SS15", 0.004, best_ss15, {"indicators": ["ATR_NORM", "VOL_EXT_NORM"], "weights": [50, 50], "entry_th": 55, "exit_th": 10})
+    ]
+    
+    if not args.ignore_baseline:
+        for path, name, comm, best_dict, default_p in baselines:
+            try:
+                if os.path.exists(path):
+                    with open(path) as f: p = json.load(f)
+                else:
+                    p = default_p
+                fit, ret, beats, tr = evaluate(p["indicators"], p["weights"], p["entry_th"], p["exit_th"], comm)
+                best_dict.update({
+                    "indicators": p["indicators"], "weights": p["weights"], "entry_th": p["entry_th"], "exit_th": p["exit_th"],
+                    "beats_bh": beats, "avg_return": ret, "total_trades": tr, "fitness": fit
+                })
+                print(f"Loaded baseline {name} ({comm*100:.1f}% com): Fit={fit:.0f} | Ret={ret:.0f}% | Beats={beats}/18 | Trades={tr}")
+            except Exception as e:
+                print(f"Could not load baseline {name}:", e)
 
     # Generate random weights summing exactly to 100, max 80, multiples of 5
     valid_random_weights = []
@@ -343,13 +350,17 @@ def optimize_strategies():
 
     fixed_thresholds = [(70, 30), (75, 25), (80, 20)]
     
-    iteration = 0
-    while time.time() - start_time < max_duration:
+    all_combinations = list(itertools.combinations(sorted(indicators), 4))
+    print(f"Total possible combinations of 4 indicators: {len(all_combinations)}. Limit set to: {max_groups}", flush=True)
+
+    for iteration, sel_inds_tuple in enumerate(all_combinations):
+        if iteration >= max_groups:
+            print(f"Reached limit of {max_groups} groups. Stopping.", flush=True)
+            break
             
-        while True:
-            sel_inds = list(np.random.choice(indicators, 4, replace=False))
-            if any(ind in ai_indicators for ind in sel_inds):
-                break
+        sel_inds = list(sel_inds_tuple)
+        # Seed for reproducibility of random configs per group
+        np.random.seed(42 + iteration)
         configs_to_test = []
         
         # 1. Combinations of 2 (50, 50)
@@ -390,12 +401,11 @@ def optimize_strategies():
                 configs_to_test.append((w, en, ex))
                 
         # Test all configurations for this group of 4 indicators
+        has_ai = any(ind in ai_indicators for ind in sel_inds)
+        targets = [("AIS10", 0.0, best_ais10), ("AIS11", 0.004, best_ais11)] if has_ai else [("SS14", 0.0, best_ss14), ("SS15", 0.004, best_ss15)]
+        
         for w, en, ex in configs_to_test:
-            if time.time() - start_time >= max_duration:
-                break
-                
-            # Evaluamos para ambas comisiones
-            for c_name, comm, best_dict in [("AIS10", 0.0, best_zero), ("AIS11", 0.004, best_com)]:
+            for c_name, comm, best_dict in targets:
                 if best_dict["beats_bh"] < 18 or True:  # always try to improve fitness
                     fit, ret, beats, tr = evaluate(sel_inds, w, en, ex, comm)
                     
@@ -414,17 +424,19 @@ def optimize_strategies():
                         print(f"[{c_name} - {comm*100:.1f}%] New Best! Fit: {fit:.0f} | Ret: {ret:.0f}% | Beats: {beats}/18 | Trades: {tr} | {sel_inds} w={w} en={en} ex={ex}", flush=True)
 
         print(f"[{iteration}] Evaluated group {sel_inds} ({len(configs_to_test)} configs)...", flush=True)
-        iteration += 1
         
-    print(f"\nOptimization Finished! Iterations evaluated: {iteration} groups of 4")
+    print(f"\nOptimization Finished! Iterations evaluated: {min(iteration+1, max_groups)} groups of 4")
     
     with open("data/ais10_zero_params.json", "w") as f:
-        json.dump(best_zero, f, indent=4)
-        
+        json.dump(best_ais10, f, indent=4)
     with open("data/ais11_com_params.json", "w") as f:
-        json.dump(best_com, f, indent=4)
+        json.dump(best_ais11, f, indent=4)
+    with open("data/ss14_zero_params.json", "w") as f:
+        json.dump(best_ss14, f, indent=4)
+    with open("data/ss15_com_params.json", "w") as f:
+        json.dump(best_ss15, f, indent=4)
         
-    print("Saved ais10_zero_params.json and ais11_com_params.json")
+    print("Saved ais10_zero_params.json, ais11_com_params.json, ss14_zero_params.json, and ss15_com_params.json")
 
 if __name__ == "__main__":
     optimize_strategies()

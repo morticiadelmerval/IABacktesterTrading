@@ -1,5 +1,5 @@
 {
-    "fitness": 4335.786393981436,
+    "fitness": 4346.498781640925,
     "beats_bh": 17,
     "indicators": [
         "ROC_3_NORM",
@@ -15,6 +15,6 @@
     ],
     "entry_th": 55,
     "exit_th": 45,
-    "avg_return": 4335.786393981436,
-    "total_trades": 402
+    "avg_return": 4346.498781640925,
+    "total_trades": 403
 }

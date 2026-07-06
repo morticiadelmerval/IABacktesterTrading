@@ -1,20 +1,20 @@
 {
+    "fitness": 4437.894935949759,
+    "beats_bh": 18,
     "indicators": [
+        "AI_MINIROCKET_BIN",
         "AI_TIMESFM",
-        "AI_TSPULSE",
-        "ROC_3_NORM",
-        "VOL_NORM"
+        "KONCORDE_MD",
+        "ROC_NORM"
     ],
     "weights": [
-        50,
-        20,
-        25,
-        5
+        10,
+        55,
+        15,
+        20
     ],
-    "entry_th": 55,
-    "exit_th": 10,
-    "beats_bh": 17,
-    "avg_return": 5159.279811662453,
-    "total_trades": 380,
-    "fitness": 5159.279811662453
+    "entry_th": 60,
+    "exit_th": 15,
+    "avg_return": 4437.894935949759,
+    "total_trades": 547
 }

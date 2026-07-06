@@ -1,0 +1,20 @@
+{
+    "indicators": [
+        "ROC_3_NORM",
+        "ATR_NORM",
+        "AI_TSPULSE",
+        "ROC_NORM"
+    ],
+    "weights": [
+        25,
+        30,
+        35,
+        10
+    ],
+    "entry_th": 55,
+    "exit_th": 30,
+    "beats_bh": 17,
+    "avg_return": 3400.5350712821933,
+    "total_trades": 351,
+    "fitness": 3107.855048253315
+}

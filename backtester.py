@@ -20,14 +20,36 @@ def sigmoid_norm(x, scale=1.0):
     return 100.0 / (1.0 + np.exp(-x / scale))
 
 def fetch_data():
+    print("Loading AI JSON signals...")
+    try:
+        with open("data/minirocket_gpu_signals.json", "r") as f:
+            minirocket_gpu_data = json.load(f)
+    except Exception: minirocket_gpu_data = {}
+    try:
+        with open("data/minirocket_signals.json", "r") as f:
+            minirocket_bin_data = json.load(f)
+    except Exception: minirocket_bin_data = {}
+    try:
+        with open("data/timesfm_signals.json", "r") as f:
+            timesfm_data = json.load(f)
+    except Exception: timesfm_data = {}
+    try:
+        with open("data/tspulse_signals.json", "r") as f:
+            tspulse_data = json.load(f)
+    except Exception: tspulse_data = {}
+    try:
+        with open("data/xgboost_stack_signals.json", "r") as f:
+            xgboost_data = json.load(f)
+    except Exception: xgboost_data = {}
+
     data = {}
     for ticker in TICKERS:
         cache_path = os.path.join(CACHE_DIR, f"{ticker}.csv")
         
-        # Invalidate cache if it's older than specified seconds (default 60 for live price updates)
+        # Invalidate cache if it's older than specified seconds (default 86400 for daily updates)
         cache_valid = False
-        cache_expire = int(os.environ.get("YF_CACHE_SECONDS", 60))
-        if os.path.exists(cache_path):
+        cache_expire = int(os.environ.get("YF_CACHE_SECONDS", 86400))
+        if os.path.exists(cache_path) and os.path.getsize(cache_path) > 1000:
             mod_time = datetime.fromtimestamp(os.path.getmtime(cache_path))
             if (datetime.now() - mod_time).total_seconds() < cache_expire:
                 cache_valid = True
@@ -36,10 +58,28 @@ def fetch_data():
             df = pd.read_csv(cache_path, index_col=0, parse_dates=True)
             df.index.name = "Date"
         else:
-            df = yf.download(ticker, start=START_DATE)
+            df = pd.DataFrame()
+            for attempt in range(3):
+                try:
+                    df = yf.download(ticker, start=START_DATE, progress=False)
+                    if not df.empty:
+                        break
+                    import time; time.sleep(2)
+                except Exception:
+                    import time; time.sleep(2)
+                    
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = [col[0] for col in df.columns]
-            df.to_csv(cache_path)
+                
+            if df.empty and os.path.exists(cache_path) and os.path.getsize(cache_path) > 1000:
+                df = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+                df.index.name = "Date"
+            elif not df.empty:
+                df.to_csv(cache_path)
+            elif ticker == "C" and os.path.exists(os.path.join(CACHE_DIR, "C_daily.csv")):
+                df = pd.read_csv(os.path.join(CACHE_DIR, "C_daily.csv"), index_col=0, parse_dates=True)
+                df.index.name = "Date"
+                df.to_csv(cache_path)
         
         # Pre-compute indicators for V10 strategies
         c = df['Close']
@@ -135,6 +175,33 @@ def fetch_data():
         
         df.fillna(50.0, inplace=True)
         
+        # AI 1: AI_MINIROCKET_GPU
+        s_gpu = pd.Series(minirocket_gpu_data.get(ticker, {}))
+        if not s_gpu.empty: s_gpu.index = pd.to_datetime(s_gpu.index)
+        df['AI_MINIROCKET_GPU'] = s_gpu.reindex(df.index) * 100.0
+
+        # AI 2: AI_MINIROCKET_BIN
+        s_bin = pd.Series(minirocket_bin_data.get(ticker, {}))
+        if not s_bin.empty: s_bin.index = pd.to_datetime(s_bin.index)
+        df['AI_MINIROCKET_BIN'] = s_bin.reindex(df.index) * 100.0
+
+        # AI 3: AI_TIMESFM
+        s_tfm = pd.Series(timesfm_data.get(ticker, {}))
+        if not s_tfm.empty: s_tfm.index = pd.to_datetime(s_tfm.index)
+        s_tfm_aligned = s_tfm.reindex(df.index)
+        df['AI_TIMESFM'] = sigmoid_norm(s_tfm_aligned * 100.0, 2.0)
+
+        # AI 4: AI_TSPULSE
+        s_tsp = pd.Series(tspulse_data.get(ticker, {}))
+        if not s_tsp.empty: s_tsp.index = pd.to_datetime(s_tsp.index)
+        s_tsp_aligned = s_tsp.reindex(df.index)
+        df['AI_TSPULSE'] = sigmoid_norm(s_tsp_aligned * 100.0, 2.0)
+
+        # AI 5: AI_XGBOOST
+        s_xgb = pd.Series(xgboost_data.get(ticker, {}))
+        if not s_xgb.empty: s_xgb.index = pd.to_datetime(s_xgb.index)
+        df['AI_XGBOOST'] = s_xgb.reindex(df.index) * 100.0
+
         data[ticker] = df
     return data
 
@@ -462,9 +529,14 @@ ss12Score = (rocNorm * 9.0 + trendNorm * 14.0 + koncordeMd * 32.0 + volNorm * 46
 activeEntry = ss12Score > 57.0
 activeExit  = ss12Score < 39.0"""
     elif stype == "SS14":
-        desc = "SS14: Optimizado para comisiones al 0% (v3). Score: ATR_NORM (45%), ROC_3_NORM (40%), ROC_NORM (10%), VOL_EXT_NORM (5%)."
+        try:
+            with open("data/ss14_zero_params.json") as f: p = json.load(f)
+        except Exception: p = {"indicators": ["ROC_3_NORM", "ROC_NORM", "VOL_EXT_NORM", "ATR_NORM"], "weights": [40, 10, 5, 45], "entry_th": 55, "exit_th": 45}
+        ind_w = sorted(zip(p["indicators"], p["weights"]), key=lambda x: x[1], reverse=True)
+        score_str = ", ".join([f"{ind} ({w}%)" for ind, w in ind_w if w > 0])
+        desc = f"SS14: Optimizado para comisiones al 0% (v0.2.5). Score: {score_str}."
         inds = ["SS14 Zero Score", "SPY Macro Crash Guard"]
-        pine_active = """// Indicadores SS14
+        pine_active = f"""// Indicadores SS14
 atr14 = ta.sma(ta.tr(true), 14)
 atrNorm = 100.0 / (1.0 + math.exp(-((atr14 / close) * 100.0) / 2.0))
 
@@ -479,32 +551,43 @@ relVol = volume / volSma20
 volExtNorm = 100.0 / (1.0 + math.exp(-(relVol - 2.0) / 1.0))
 
 ss14Score = (atrNorm * 45.0 + roc3Norm * 40.0 + rocNorm * 10.0 + volExtNorm * 5.0) / 100.0
-activeEntry = ss14Score > 55.0
-activeExit  = ss14Score < 45.0"""
+activeEntry = ss14Score > {p['entry_th']}.0
+activeExit  = ss14Score < {p['exit_th']}.0"""
     elif stype == "SS15":
-        desc = "SS15: Optimizado para comisiones al 0.4% (v3). Score: ATR_NORM (50%), ROC_3_NORM (35%), ROC_NORM (10%), STOCH_14 (5%)."
+        try:
+            with open("data/ss15_com_params.json") as f: p = json.load(f)
+        except Exception: p = {"indicators": ["ATR_NORM", "VOL_EXT_NORM"], "weights": [50, 50], "entry_th": 55, "exit_th": 10}
+        ind_w = sorted(zip(p["indicators"], p["weights"]), key=lambda x: x[1], reverse=True)
+        score_str = ", ".join([f"{ind} ({w}%)" for ind, w in ind_w if w > 0])
+        desc = f"SS15: Optimizado para comisiones al 0.4% (v0.2.5). Score: {score_str}."
         inds = ["SS15 Com Score", "SPY Macro Crash Guard"]
-        pine_active = """// Indicadores SS15
+        pine_active = f"""// Indicadores SS15
 atr14 = ta.sma(ta.tr(true), 14)
 atrNorm = 100.0 / (1.0 + math.exp(-((atr14 / close) * 100.0) / 2.0))
 
-roc3 = ta.roc(close, 3)
-roc3Norm = 100.0 / (1.0 + math.exp(-roc3 / 5.0))
+volSma20 = ta.sma(volume, 20)
+relVol = volume / volSma20
+volExtNorm = 100.0 / (1.0 + math.exp(-(relVol - 2.0) / 1.0))
 
-roc5 = ta.roc(close, 5)
-rocNorm = 100.0 / (1.0 + math.exp(-roc5 / 5.0))
-
-stoch14 = ta.stoch(close, high, low, 14)
-
-ss15Score = (atrNorm * 50.0 + roc3Norm * 35.0 + rocNorm * 10.0 + stoch14 * 5.0) / 100.0
-activeEntry = ss15Score > 55.0
-activeExit  = ss15Score < 45.0"""
+ss15Score = (atrNorm * 50.0 + volExtNorm * 50.0) / 100.0
+activeEntry = ss15Score > {p['entry_th']}.0
+activeExit  = ss15Score < {p['exit_th']}.0"""
     elif stype == "AIS10":
-        desc = "AIS10: Multi-IA Optimizada para comisiones 0% (v0.2.5). Score: AI_TIMESFM (50%), ROC_3_NORM (25%), AI_TSPULSE (20%), VOL_NORM (5%)."
+        try:
+            with open("data/ais10_zero_params.json") as f: p = json.load(f)
+        except Exception: p = {"indicators": ["AI_MINIROCKET_BIN", "AI_TIMESFM", "KONCORDE_MD", "ROC_NORM"], "weights": [10, 55, 15, 20], "entry_th": 60, "exit_th": 15}
+        ind_w = sorted(zip(p["indicators"], p["weights"]), key=lambda x: x[1], reverse=True)
+        score_str = ", ".join([f"{ind} ({w}%)" for ind, w in ind_w if w > 0])
+        desc = f"AIS10: Multi-IA Optimizada para comisiones 0% (v0.2.5). Score: {score_str}."
         inds = ["AIS10 Zero Score", "SPY Macro Crash Guard"]
         pine_active = "// [ADVERTENCIA] Los modelos locales de IA (TimesFM/TSPulse) no se pueden evaluar en TradingView.\n// Se aplica únicamente el Filtro Macro Global:\nactiveExit = false"
     elif stype == "AIS11":
-        desc = "AIS11: Multi-IA Optimizada para comisiones 0.4% (v0.2.5). Score: AI_TSPULSE (35%), ATR_NORM (30%), ROC_3_NORM (25%), ROC_NORM (10%)."
+        try:
+            with open("data/ais11_com_params.json") as f: p = json.load(f)
+        except Exception: p = {"indicators": ["AI_MINIROCKET_GPU", "AI_TIMESFM", "AI_TSPULSE", "ROC_3_NORM"], "weights": [5, 20, 65, 10], "entry_th": 55, "exit_th": 5}
+        ind_w = sorted(zip(p["indicators"], p["weights"]), key=lambda x: x[1], reverse=True)
+        score_str = ", ".join([f"{ind} ({w}%)" for ind, w in ind_w if w > 0])
+        desc = f"AIS11: Multi-IA Optimizada para comisiones 0.4% (v0.2.5). Score: {score_str}."
         inds = ["AIS11 Com Score", "SPY Macro Crash Guard"]
         pine_active = "// [ADVERTENCIA] Los modelos locales de IA (TimesFM/TSPulse) no se pueden evaluar en TradingView.\n// Se aplica únicamente el Filtro Macro Global:\nactiveExit = false"
 
@@ -614,7 +697,6 @@ def generate_signals(df, ticker, spy_idx, spy_ret, params, commission=0.0):
     elif stype.startswith("TIMESFM"):
         if not hasattr(generate_signals, 'tsfm_cache'):
             try:
-                import json
                 with open("data/timesfm_signals.json", "r") as f:
                     generate_signals.tsfm_cache = json.load(f)
             except:
@@ -678,7 +760,6 @@ def generate_signals(df, ticker, spy_idx, spy_ret, params, commission=0.0):
     elif stype.startswith("TSPULSE"):
         if not hasattr(generate_signals, 'tspulse_cache'):
             try:
-                import json
                 with open("data/tspulse_signals.json", "r") as f:
                     generate_signals.tspulse_cache = json.load(f)
             except:
@@ -735,7 +816,6 @@ def generate_signals(df, ticker, spy_idx, spy_ret, params, commission=0.0):
         
         if not hasattr(generate_signals, cache_name):
             try:
-                import json
                 with open(file_name, "r") as f:
                     setattr(generate_signals, cache_name, json.load(f))
             except:
@@ -764,7 +844,6 @@ def generate_signals(df, ticker, spy_idx, spy_ret, params, commission=0.0):
     elif stype == "MINIROCKET_STACK":
         if not hasattr(generate_signals, 'xgboost_cache'):
             try:
-                import json
                 with open("data/xgboost_stack_signals.json", "r") as f:
                     generate_signals.xgboost_cache = json.load(f)
             except:
@@ -805,65 +884,42 @@ def generate_signals(df, ticker, spy_idx, spy_ret, params, commission=0.0):
         es = macro_aligned | active_exit.values
         ls = active_long.values & (~macro_aligned)
         return ls, es
-    elif stype == "SS14":
-        score = (df['ATR_NORM'] * 45 + df['ROC_3_NORM'] * 40 + df['ROC_NORM'] * 10 + df['VOL_EXT_NORM'] * 5) / 100.0
-        active_long = score > 55
-        active_exit = score < 45
-        
-        es = macro_aligned | active_exit.values
-        ls = active_long.values & (~macro_aligned)
-        return ls, es
-    elif stype == "SS15":
-        score = (df['ATR_NORM'] * 50 + df['ROC_3_NORM'] * 35 + df['ROC_NORM'] * 10 + df['STOCH_14'] * 5) / 100.0
-        active_long = score > 55
-        active_exit = score < 45
-        
-        es = macro_aligned | active_exit.values
-        ls = active_long.values & (~macro_aligned)
-        return ls, es
-    elif stype in ["AIS10", "AIS11"]:
-        if not hasattr(generate_signals, 'timesfm_cache'):
+    elif stype in ["SS14", "SS15", "AIS10", "AIS11"]:
+        if stype == "SS14":
             try:
-                import json
-                with open("data/timesfm_signals.json", "r") as f:
-                    generate_signals.timesfm_cache = json.load(f)
-            except Exception: generate_signals.timesfm_cache = {}
+                with open("data/ss14_zero_params.json") as f: p = json.load(f)
+            except Exception: p = {"indicators": ["ROC_3_NORM", "ROC_NORM", "VOL_EXT_NORM", "ATR_NORM"], "weights": [40, 10, 5, 45], "entry_th": 55, "exit_th": 45}
+        elif stype == "SS15":
+            try:
+                with open("data/ss15_com_params.json") as f: p = json.load(f)
+            except Exception: p = {"indicators": ["ATR_NORM", "VOL_EXT_NORM"], "weights": [50, 50], "entry_th": 55, "exit_th": 10}
+        elif stype == "AIS10":
+            try:
+                with open("data/ais10_zero_params.json") as f: p = json.load(f)
+            except Exception: p = {"indicators": ["AI_MINIROCKET_BIN", "AI_TIMESFM", "KONCORDE_MD", "ROC_NORM"], "weights": [10, 55, 15, 20], "entry_th": 60, "exit_th": 15}
+        else: # AIS11
+            try:
+                with open("data/ais11_com_params.json") as f: p = json.load(f)
+            except Exception: p = {"indicators": ["AI_MINIROCKET_GPU", "AI_TIMESFM", "AI_TSPULSE", "ROC_3_NORM"], "weights": [5, 20, 65, 10], "entry_th": 55, "exit_th": 5}
             
-        if not hasattr(generate_signals, 'tspulse_cache'):
-            try:
-                import json
-                with open("data/tspulse_signals.json", "r") as f:
-                    generate_signals.tspulse_cache = json.load(f)
-            except Exception: generate_signals.tspulse_cache = {}
-
-        s_tfm = pd.Series(generate_signals.timesfm_cache.get(ticker, {}))
-        if not s_tfm.empty: s_tfm.index = pd.to_datetime(s_tfm.index)
-        tfm_aligned = s_tfm.reindex(df.index)
-        tfm_norm = sigmoid_norm(tfm_aligned * 100.0, 2.0).values
-        valid_tfm = (~np.isnan(tfm_norm)).astype(float)
-        tfm_vals = np.where(np.isnan(tfm_norm), 0.0, tfm_norm)
-
-        s_tsp = pd.Series(generate_signals.tspulse_cache.get(ticker, {}))
-        if not s_tsp.empty: s_tsp.index = pd.to_datetime(s_tsp.index)
-        tsp_aligned = s_tsp.reindex(df.index)
-        tsp_norm = sigmoid_norm(tsp_aligned * 100.0, 2.0).values
-        valid_tsp = (~np.isnan(tsp_norm)).astype(float)
-        tsp_vals = np.where(np.isnan(tsp_norm), 0.0, tsp_norm)
-
-        if stype == "AIS10":
-            score = tfm_vals * 50 + df['ROC_3_NORM'].values * 25 + tsp_vals * 20 + df['VOL_NORM'].values * 5
-            total_w = valid_tfm * 50 + 25 + valid_tsp * 20 + 5
-            valid_rows = total_w > 0
-            score = np.where(valid_rows, score / total_w, 50.0)
-            active_long = score > 55
-            active_exit = score < 10
-        else:
-            score = tsp_vals * 35 + df['ATR_NORM'].values * 30 + df['ROC_3_NORM'].values * 25 + df['ROC_NORM'].values * 10
-            total_w = valid_tsp * 35 + 30 + 25 + 10
-            valid_rows = total_w > 0
-            score = np.where(valid_rows, score / total_w, 50.0)
-            active_long = score > 55
-            active_exit = score < 30
+        sel_inds = p["indicators"]
+        weights = p["weights"]
+        entry_th = p["entry_th"]
+        exit_th = p["exit_th"]
+        
+        score = np.zeros(len(df))
+        total_w = np.zeros(len(df))
+        for idx, ind in enumerate(sel_inds):
+            vals = df[ind].values
+            valid = (~np.isnan(vals)).astype(float)
+            safe_vals = np.where(np.isnan(vals), 0.0, vals)
+            score += safe_vals * weights[idx]
+            total_w += valid * weights[idx]
+            
+        valid_rows = total_w > 0
+        score = np.where(valid_rows, score / total_w, 50.0)
+        active_long = score > entry_th
+        active_exit = score < exit_th
 
         es = macro_aligned | active_exit
         ls = active_long & (~macro_aligned)
@@ -963,16 +1019,8 @@ def run_all(commission=0.0, start_date=None, end_date=None):
                 elif stype == "SS12":
                     score_val = (df['ROC_NORM'].iloc[-1] * 9 + df['TREND_SMA'].iloc[-1] * 14 + df['KONCORDE_MD'].iloc[-1] * 32 + df['VOL_NORM'].iloc[-1] * 46) / 100.0
                     exit_label = f"Score < 39 (Current: {score_val:.1f})"
-                elif stype == "SS14":
-                    score_val = (df['ATR_NORM'].iloc[-1] * 45 + df['ROC_3_NORM'].iloc[-1] * 40 + df['ROC_NORM'].iloc[-1] * 10 + df['VOL_EXT_NORM'].iloc[-1] * 5) / 100.0
-                    exit_label = f"Score < 45 (Current: {score_val:.1f})"
-                elif stype == "SS15":
-                    score_val = (df['ATR_NORM'].iloc[-1] * 50 + df['ROC_3_NORM'].iloc[-1] * 35 + df['ROC_NORM'].iloc[-1] * 10 + df['STOCH_14'].iloc[-1] * 5) / 100.0
-                    exit_label = f"Score < 45 (Current: {score_val:.1f})"
-                elif stype == "AIS10":
-                    exit_label = "Score < 10 (AIS10 Multi-IA)"
-                elif stype == "AIS11":
-                    exit_label = "Score < 30 (AIS11 Multi-IA)"
+                elif stype in ["SS14", "SS15", "AIS10", "AIS11"]:
+                    exit_label = f"Score Dinámico ({stype})"
                 elif stype == "MFI":
                     exit_label = "MFI > 85"
                 elif stype == "RELVOL":

@@ -54,13 +54,14 @@ run_dashboard.bat
 * **Expansión del Portafolio Algorítmico (de 20 a 26 estrategias)**:
   * Incorporación de las estrategias **SS12, SS13, SS14 y SS15**: Nuevas fórmulas multifactoriales combinando señales de volumen, momentum, estocásticos y modelos de IA, calibradas específicamente para entornos con 0% y 0.4% de comisión.
   * Incorporación de las estrategias super-ensamble **AIS10 y AIS11**: Motores Multi-IA combinatorios que evalúan miles de ponderaciones de forma vectorizada.
-* **Motor Optimizado Multi-IA (`optimize_ais10.py`)**:
-  * Integración en paralelo de 5 señales avanzadas de Machine Learning (`TimesFM`, `TSPulse`, `MiniRocket GPU`, `MiniRocket Bin`, `XGBoost Stack`) escaladas dinámicamente al rango 0..100 mediante funciones sigmoidales y probabilísticas.
-  * Re-ponderación dinámica en tiempo real que gestiona fechas de inicio escalonadas (ej. 1996 vs 2005 vs 2012) sin distorsionar el historial pre-existente.
-* **Estrategia Líder Absoluta (AIS10 - Puesto #1)**:
-  * Optimizada para 0% comisiones, alcanza un **rendimiento promedio de 4,139.7%** batiendo a Buy & Hold en 15 de 18 activos. Fórmula: `AI_TIMESFM` (50%), `ROC_3_NORM` (25%), `AI_TSPULSE` (20%), `VOL_NORM` (5%).
-* **Consistencia Máxima en Portafolio (AIS11 - Puesto #6)**:
-  * Optimizada para comisiones reales del 0.4%, supera a Buy & Hold en **17 de 18 activos** (éxito en el 94.4% de las acciones y ETFs). Fórmula: `AI_TSPULSE` (35%), `ATR_NORM` (30%), `ROC_3_NORM` (25%), `ROC_NORM` (10%).
+* **Búsqueda Exhaustiva Total (3,060 Combinaciones y 13 Millones de Simulaciones)**:
+  * Optimización simultánea y sistemática de las 4 estrategias supremas (**AIS10, AIS11, SS14 y SS15**) evaluando el 100% de los 3,060 grupos posibles de 4 indicadores (repartiendo 2,345 grupos con IA para AIS10/AIS11 y 715 grupos 100% técnicos para SS14/SS15).
+  * Carga dinámica en tiempo real en `backtester.py` desde archivos JSON sincronizados, garantizando 100% de homologación entre el motor de búsqueda y el backtester.
+* **Estrategias Líderes Absolutas (Resultados Finales de Optimización)**:
+  * **AIS10 (IA - 0% comisiones - Puesto #1)**: Bate a Buy & Hold en **18 de 18 activos (100% de éxito en todo el portafolio)**, alcanzando un **rendimiento promedio de 4,438%**. Fórmula ganadora: `AI_MINIROCKET_BIN` (10%), `AI_TIMESFM` (55%), `KONCORDE_MD` (15%), `ROC_NORM` (20%). Entry: 60, Exit: 15.
+  * **AIS11 (IA - 0.4% comisiones)**: Bate a Buy & Hold en **17 de 18 activos**, alcanzando un **rendimiento promedio de 3,842%**. Fórmula ganadora: `AI_MINIROCKET_GPU` (5%), `AI_TIMESFM` (20%), `AI_TSPULSE` (65%), `ROC_3_NORM` (10%). Entry: 55, Exit: 5.
+  * **SS14 (Simple/Tradicional - 0% comisiones)**: Bate a Buy & Hold en **17 de 18 activos**, alcanzando un **rendimiento promedio de 4,349%**. Fórmula ganadora: `ROC_3_NORM` (40%), `ROC_NORM` (10%), `VOL_EXT_NORM` (5%), `ATR_NORM` (45%). Entry: 55, Exit: 45.
+  * **SS15 (Simple/Tradicional - 0.4% comisiones)**: Bate a Buy & Hold en **17 de 18 activos**, alcanzando un **rendimiento promedio neto de 3,693%** con 302 operaciones totales (~16 trades por activo en 30 años). Fórmula ganadora: `ATR_NORM` (50%), `VOL_EXT_NORM` (50%). Entry: 55, Exit: 10.
 * **Seguro de Re-entrada Post Stop-Loss (SMA 20)**:
   * Todas las estrategias con Stop Loss estricto del -15% exigen ahora una doble condición de recuperación (`Close > SMA20` + señal activa de compra) para reingresar al mercado tras un corte de pérdidas, eliminando el riesgo de atrapar cuchillos cayendo durante crashes bursátiles.
 * **Mejoras en el Dashboard y API**:
