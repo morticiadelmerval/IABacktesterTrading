@@ -1,5 +1,6 @@
 import os
 import json
+import time
 # pyrefly: ignore [missing-import]
 import numpy as np
 import pandas as pd
@@ -42,16 +43,16 @@ def fetch_data():
             xgboost_data = json.load(f)
     except Exception: xgboost_data = {}
 
+    # Invalidate cache if it's older than specified seconds (default 3600 for 1-hour updates)
+    cache_expire = float(os.environ.get("YF_CACHE_SECONDS", 3600))
     data = {}
     for ticker in TICKERS:
         cache_path = os.path.join(CACHE_DIR, f"{ticker}.csv")
         
-        # Invalidate cache if it's older than specified seconds (default 86400 for daily updates)
         cache_valid = False
-        cache_expire = int(os.environ.get("YF_CACHE_SECONDS", 86400))
-        if os.path.exists(cache_path) and os.path.getsize(cache_path) > 1000:
-            mod_time = datetime.fromtimestamp(os.path.getmtime(cache_path))
-            if (datetime.now() - mod_time).total_seconds() < cache_expire:
+        if os.path.exists(cache_path) and os.path.getsize(cache_path) > 100:
+            mod_time = os.path.getmtime(cache_path)
+            if 0 <= (time.time() - mod_time) < cache_expire:
                 cache_valid = True
 
         if cache_valid:
@@ -64,14 +65,14 @@ def fetch_data():
                     df = yf.download(ticker, start=START_DATE, progress=False)
                     if not df.empty:
                         break
-                    import time; time.sleep(2)
+                    time.sleep(2)
                 except Exception:
-                    import time; time.sleep(2)
+                    time.sleep(2)
                     
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = [col[0] for col in df.columns]
                 
-            if df.empty and os.path.exists(cache_path) and os.path.getsize(cache_path) > 1000:
+            if df.empty and os.path.exists(cache_path) and os.path.getsize(cache_path) > 100:
                 df = pd.read_csv(cache_path, index_col=0, parse_dates=True)
                 df.index.name = "Date"
             elif not df.empty:

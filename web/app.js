@@ -636,13 +636,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td>${tkData.metrics.num_trades}</td>
                 <td>${tkData.metrics.win_rate.toFixed(1)}%</td>
                 <td>${getSignalBadge(tkData.metrics.current_signal)}</td>
-                <td>${tkData.metrics.exit_threshold || '-'}</td>
                 <td class="live-price-cell" data-ticker="${tk}" data-last-price="${tkData.metrics.current_price}">$${tkData.metrics.current_price.toFixed(2)}</td>
                 <td>
                     <span class="badge ${tkData.outperformed ? 'badge-success' : 'badge-danger'}">
                         ${tkData.outperformed ? 'Superó B&H' : 'No Superó'}
                     </span>
                 </td>
+                <td>${tkData.metrics.exit_threshold || '-'}</td>
             `;
             
             // Double click row to select that ticker in the dashboard chart
