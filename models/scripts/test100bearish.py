@@ -17,22 +17,37 @@ from backtester import (
     CACHE_DIR
 )
 
-# 100 de los activos más populares/operados de Wall Street (Aproximación S&P 100 / Nasdaq 100)
-TICKERS_100 = [
-    "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "TSLA", "BRK-B", "LLY",
-    "AVGO", "V", "JPM", "UNH", "MA", "PG", "JNJ", "HD", "MRK", "COST",
-    "ABBV", "CVX", "CRM", "AMD", "KO", "PEP", "BAC", "WMT", "NFLX", "LIN",
-    "TMO", "MCD", "WFC", "CSCO", "INTU", "DIS", "DHR", "ORCL", "ABT", "QCOM",
-    "GE", "IBM", "CAT", "VZ", "TXN", "NKE", "AXP", "AMGN", "PM", "NOW",
-    "INTC", "COP", "SPGI", "BA", "HON", "UNP", "PLD", "LOW", "SYK", "GS",
-    "BKNG", "ELV", "LMT", "TJX", "BLK", "MDT", "SBUX", "CI", "CB", "MMC",
-    "ADI", "AMT", "ISRG", "GILD", "ADP", "C", "REGN", "VRTX", "PGR", "T",
-    "MDLZ", "SLB", "BSX", "ZTS", "MO", "EOG", "CME", "SO", "DUK", "KLAC",
-    "ICE", "ITW", "CSX", "NOC", "SHW", "HUM", "TGT", "AON", "WM", "MCO"
+# 100 de los activos más operados y representativos de la década del 90,
+# incluyendo una fuerte proporción de activos que sufrieron mercados bajistas seculares,
+# burbujas punto com, caídas severas post-2008 o lateralización de varias décadas.
+TICKERS_100_BEARISH_90S = [
+    # Tech / Telecom / Hardware de los 90s con severos crash o lateralidad secular
+    "CSCO", "INTC", "NOK", "ERIC", "GLW", "JNPR", "CIEN", "LUMN", "T", "VZ",
+    "IBM", "ORCL", "QCOM", "HPQ", "XRX", "BB", "EBAY", "AKAM", "VRSN", "NTAP",
+    "FFIV", "CHKP", "FLEX", "JBL", "SANM", "ARW", "AVT", "WDC", "STX", "MU",
+    
+    # Financieros con colapsos o décadas bajo el agua desde 1998-2007
+    "C", "AIG", "BAC", "WFC", "KEY", "RF", "HBAN", "ZION", "CMA", "MTB",
+    "PRU", "MET", "TRV", "BK", "STT", "FITB",
+    
+    # Retail / Medios / Automotriz / Consumo con fuertes caídas o pérdida de valor en décadas
+    "WBA", "PARA", "F", "GM", "GPS", "M", "KSS", "JWN", "FL", "BBY",
+    "DIS", "GT", "BWA", "WHR", "SWK", "NWL", "CLX", "CPB", "CAG", "K",
+    "GIS", "TSN", "HRL", "TAP", "MO",
+    
+    # Industriales / Minería / Materias Primas / Energía con caídas o ciclos laterales violentos
+    "AA", "X", "NEM", "FCX", "HL", "CDE", "APA", "HAL", "SLB", "DVN",
+    "OXY", "MMM", "IP", "DD", "EMN", "PPG",
+    
+    # Farmacéuticas y BioTech clásicas de los 90 con décadas de estancamiento
+    "PFE", "BMY", "GILD", "BIIB", "AMGN",
+    
+    # Utilities y defensivas con retornos nominales aplastados
+    "ED", "SO", "DUK", "D", "EXC", "EIX", "PEG"
 ]
 
 def load_ai_signals():
-    print("Loading AI JSON signals for 100 tickers test...")
+    print("Loading AI JSON signals for 100 90s/Bearish tickers test...")
     try:
         with open("data/minirocket_gpu_signals.json", "r") as f:
             mr_gpu = json.load(f)
@@ -65,8 +80,8 @@ def load_data(ticker):
     if os.path.exists(file_path) and os.path.getsize(file_path) > 100:
         df = pd.read_csv(file_path, index_col=0, parse_dates=True)
     else:
-        print(f"Descargando {ticker}...")
-        df = yf.download(ticker, start="1996-01-01", progress=False)
+        print(f"Descargando {ticker} (desde 1990 o inicio disponible)...")
+        df = yf.download(ticker, start="1990-01-01", progress=False)
         if len(df) == 0:
             return None
         if isinstance(df.columns, pd.MultiIndex):
@@ -198,7 +213,7 @@ def prepare_df_for_ticker(df, ticker, mr_gpu, mr_bin, tsfm, tsp, xgb):
 
 def run_test():
     all_strategies = STRATEGY_INFO.copy()
-    print(f"Total estrategias a evaluar: {len(all_strategies)}")
+    print(f"Total estrategias a evaluar en activos 90s/Bearish: {len(all_strategies)}")
     
     mr_gpu, mr_bin, tsfm, tsp, xgb = load_ai_signals()
     
@@ -212,10 +227,10 @@ def run_test():
     results_by_strategy = {s: {'beats': 0, 'trades': [], 'returns': [], 'maxdd': [], 'cagr': []} for s in all_strategies}
     
     valid_tickers = 0
-    for ticker in TICKERS_100:
+    for ticker in TICKERS_100_BEARISH_90S:
         df = load_data(ticker)
         if df is None or len(df) < 500:
-            print(f"Saltando {ticker} por falta de datos.")
+            print(f"Saltando {ticker} por falta de datos suficientes.")
             continue
             
         valid_tickers += 1
@@ -259,19 +274,18 @@ def run_test():
                 results_by_strategy[s_code]['beats'] += 1
                 
         if valid_tickers % 10 == 0:
-            print(f"Progreso: {valid_tickers} tickers procesados...")
+            print(f"Progreso: {valid_tickers} tickers de los 90s procesados...")
 
     print(f"\n==========================================================================")
-    print(f"   REPORTE FINAL GENERAL ({valid_tickers} Activos de Wall Street - v0.2.5)   ")
+    print(f"   REPORTE FINAL GENERAL ({valid_tickers} Activos 90s/Bearish - v0.2.5)   ")
     print(f"==========================================================================")
     
     report_lines = []
-    report_lines.append(f"# Test de 100 Activos (Wall Street Top 100 - v0.2.5)\n")
+    report_lines.append(f"# Test de 100 Activos de los Años 90 con Sesgo Bajista/Lateral (v0.2.5)\n")
     report_lines.append(f"Activos válidos analizados: {valid_tickers} | Comisiones Reales: 0.4% por trade\n")
     report_lines.append("| Ranking | Estrategia | WinRate vs B&H | Retorno Promedio | CAGR Promedio | Max DD Promedio | Trades Promedio |")
     report_lines.append("|---|---|---|---|---|---|---|")
     
-    # Sort strategies by beats descending, then average return descending
     sorted_strats = sorted(
         results_by_strategy.items(),
         key=lambda x: (x[1]['beats'], np.mean(x[1]['returns'])),
@@ -288,18 +302,17 @@ def run_test():
         report_lines.append(f"| #{rank} | **{s_code}** | **{winrate:.1f}% ({data['beats']}/{valid_tickers})** | {avg_ret:,.1f}% | {avg_cagr:.2f}% | {avg_dd:.1f}% | {avg_trades:.0f} |")
         print(f"Rank #{rank:2d} | {s_code:15s} | Beats: {data['beats']:2d}/{valid_tickers} ({winrate:5.1f}%) | Ret: {avg_ret:10,.1f}% | CAGR: {avg_cagr:6.2f}% | MaxDD: {avg_dd:5.1f}% | Trades: {avg_trades:4.0f}")
         
-    with open('artifacts_report_100.md', 'w', encoding='utf-8') as f:
+    with open('artifacts_report_100_bearish.md', 'w', encoding='utf-8') as f:
         f.write("\n".join(report_lines))
         
     try:
         os.makedirs('data', exist_ok=True)
-        with open('data/report_100_tickers_v0.2.5.md', 'w', encoding='utf-8') as f:
+        with open('data/report_100_bearish_v0.2.5.md', 'w', encoding='utf-8') as f:
             f.write("\n".join(report_lines))
     except Exception as e:
         print(f"No se pudo guardar copia en data/: {e}")
         
-    print("\nReporte guardado exitosamente en 'artifacts_report_100.md' y 'data/report_100_tickers_v0.2.5.md'.")
+    print("\nReporte guardado exitosamente en 'artifacts_report_100_bearish.md' y 'data/report_100_bearish_v0.2.5.md'.")
 
 if __name__ == "__main__":
     run_test()
-
