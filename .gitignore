@@ -28,3 +28,11 @@ Thumbs.db
 
 # Documentación interna
 docs/
+data/minirocket_gpu_signals.json
+data/minirocket_gpu_signals.json
+data/minirocket_signals.json
+data/results.json
+data/timesfm_signals.json
+data/tspulse_multi_signals.json
+data/tspulse_signals.json
+data/xgboost_stack_signals.json

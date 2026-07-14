@@ -599,27 +599,34 @@ activeExit  = ss15Score < {p['exit_th']}.0"""
     s_id = next((k for k, v in STRATEGY_INFO.items() if v == params), "")
     is_strict_reentry = ((s_id.startswith("SS") and s_id != "SS11") or s_id in ["AIS10", "AIS11"]) and sl_pct is not None
     
+    pine_sl_vars = ""
+    pine_sl_check = ""
+    pine_sl_exit = ""
+    
     if sl_pct is not None:
         desc += f" Incluye un Stop Loss estricto de {sl_pct}%."
         if is_strict_reentry:
             desc += " Tras tocar el stop-loss, exige que el precio supere la SMA 20 para volver a comprar."
             inds.append("SMA 20 Re-entry Filter")
-        inds.append(f"Stop Loss {sl_pct}%")
-        pine_exit = f'\n// Stop Loss\nif strategy.position_size > 0\n    strategy.exit("Stop Loss", "Long", stop=strategy.position_avg_price * (1.0 + ({sl_pct}/100.0)))'
-        
-        if is_strict_reentry:
-            pine_exit += f'''
+            pine_sl_vars = "\n// Control de Estado para Stop Loss y Recuperación\nvar bool in_sl_recovery = false"
+            pine_sl_check = f"""
 // Lógica de recuperación post-StopLoss
-var bool in_sl_recovery = false
 if strategy.position_size > 0 and low <= strategy.position_avg_price * (1.0 + ({sl_pct}/100.0))
     in_sl_recovery := true
 
-sma20 = ta.sma(close, 20)
-if in_sl_recovery and close > sma20
+sma20_recovery = ta.sma(close, 20)
+if in_sl_recovery and close > sma20_recovery
     in_sl_recovery := false
-'''
+"""
+        else:
+            pine_sl_vars = "\n// Control de Estado para Stop Loss\nvar bool in_sl_recovery = false"
+            
+        inds.append(f"Stop Loss {sl_pct}%")
+        pine_sl_exit = f'\n    if strategy.position_size > 0\n        strategy.exit("Stop Loss", "Long", stop=strategy.position_avg_price * (1.0 + ({sl_pct}/100.0)))'
     else:
-        pine_exit = ""
+        pine_sl_vars = "\n// Sin Stop Loss\nvar bool in_sl_recovery = false"
+        pine_sl_check = ""
+        pine_sl_exit = ""
 
     params["desc"] = desc
     params["indicators"] = inds
@@ -629,7 +636,7 @@ if in_sl_recovery and close > sma20
     else:
         entry_cmd = 'if not in_sl_recovery\n        strategy.entry("Long", strategy.long)' if is_strict_reentry else 'strategy.entry("Long", strategy.long)'
 
-    params["pinescript"] = f"""//@version=5
+    params["pinescript"] = f"""//@version=6
 strategy("{params['name']}", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
 
 // 1. Filtro Macro Global
@@ -639,17 +646,19 @@ spyRet   = (spyClose - spyClose[1]) / spyClose[1]
 var int daysOut = 0
 if spyRet < -0.042
     daysOut := 8
+{pine_sl_vars}
 
 // 2. Filtro Activo
 {pine_active}
+{pine_sl_check}
 
-// Lógica de Trading Combinada
+// 3. Lógica de Trading Combinada
 if daysOut > 0 or activeExit
     strategy.close("Long")
     if daysOut > 0
         daysOut := daysOut - 1
 else
-    {entry_cmd}{pine_exit}
+    {entry_cmd}{pine_sl_exit}
 
 if barstate.isfirst
     strategy.entry("Long", strategy.long)
